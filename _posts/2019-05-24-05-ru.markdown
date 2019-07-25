@@ -1,0 +1,235 @@
+---
+layout: single
+title: "Debug"
+ref: debug
+date: 2019-05-24 12:00:00 +0300
+categories: rxswift
+lang: ru
+---
+
+У `subscribe` метода довольно много аргументов, не только `onNext`, но и `onError`, `onCompleted` и `onDisposed`. 
+
+```swift
+public func subscribe(onNext: ((E) -> Void)? = nil, onError: ((Swift.Error) -> Void)? = nil, onCompleted: (() -> Void)? = nil, onDisposed: (() -> Void)? = nil)
+```
+
+Представьте, что у вас есть блок кода, использующий только аргумент `onNext` и Вы хотите добавить дополнительные консольные выводы:
+
+```swift
+observable
+  .subscribe(onNext: { [weak self] value in
+  	self?.doSomeStuff(value)
+  })
+  .disposed(by: disposeBag)
+```
+
+Возможно, Вы будете использовать метод `subscribe` со всеми аргументами (по крайней мере я так раньше делал):
+
+```swift
+observable
+  .subscribe(onNext: { [weak self] value in
+    self?.doSomeStuff(value)
+    print(value)
+  }, onError: { error in
+    print(error)
+  }, onCompleted: {
+    print("onCompleted")
+  }) {
+    print("onDisposed")
+  }
+  .disposed(by: disposeBag)
+```
+
+Представьте, что нам нужно найти проблему в какой-то цепочке. Для этого мы добавляем дополнительные выводы в консоль, находим проблему, устраняем ее, затем убираем выводы. Постоянно менять метод, `subscribe` добавляя-удаляя аргументы будет затруднительно, в т.ч. из-за [trailing closure syntax](https://docs.swift.org/swift-book/LanguageGuide/Closures.html).
+
+К счастью в RxSwift есть специальный оператор `debug`, добавление-удаление которого в процессе отладки будет менее затратной задачей, а эффект от него впринципе такой же как и использование всех аргументов метода `subscribe`:
+
+```swift
+Observable<Int>.interval(1, scheduler: MainScheduler.instance)
+  .map { String($0) }
+  .bind(to: strSubject)
+  .disposed(by: disposeBag)
+
+strSubject
+  .debug("strSubject")
+  .subscribe(onNext: { [weak self] value in
+    self?.doSomeStuff(value)
+  })
+  .disposed(by: disposeBag)
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 7) { [weak self] in
+    self?.strSubject.on(.error(DataError.testError))
+}
+```
+
+В консоли мы видим все ивенты по идентификатору, который мы использовали - `strSubject`:
+
+```swift
+strSubject -> subscribed
+strSubject -> Event next(0)
+strSubject -> Event next(1)
+strSubject -> Event next(2)
+strSubject -> Event next(3)
+strSubject -> Event next(4)
+strSubject -> Event next(5)
+strSubject -> Event next(6)
+strSubject -> Event error(testError)
+strSubject -> isDisposed
+```
+
+Если количество информации, выводимой в консоль нас не устраивает, мы можем написать свой метод `debug`, пример есть в [комьюнити](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/GettingStarted.md#debugging), ниже он приведен с небольшой модификацией, дополнительно выводится на печать `Thread.current.description`:
+
+```swift
+extension ObservableType {
+  public func myDebug(identifier: String) -> Observable<Self.E> {
+    return Observable.create { observer in
+      print("subscribed \(identifier) \(Thread.current.description)")
+      let subscription = self.subscribe { e in
+        print("event \(identifier)  \(e) \(Thread.current.description)")
+        switch e {
+        case .next(let value):
+          observer.on(.next(value))
+
+        case .error(let error):
+          observer.on(.error(error))
+
+        case .completed:
+          observer.on(.completed)
+        }
+      }
+      return Disposables.create {
+        print("disposing \(identifier) \(Thread.current.description)")
+        subscription.dispose()
+      }
+    }
+  }
+}
+```
+
+В RxSwift `debug` реализован как обычный оператор, т.е. связкой Producer + Sink, `Debug` и `DebugSink`. Начинающим разработчикам будет гораздо проще, и, возможно, понятнее использовать extension, как в примере выше, но для меня оба варианта приемлемы.
+
+Давайте обновим код подписки `strSubject`:
+
+```swift
+strSubject
+  .myDebug(identifier: "strSubject")
+  .subscribeOn(ConcurrentDispatchQueueScheduler(qos: .background))
+  .subscribe(onNext: { [weak self] value in
+    self?.doSomeStuff(value)
+  })
+  .disposed(by: disposeBag)
+```
+
+В консоли мы увидим следующее:
+
+```swift
+subscribed strSubject <NSThread: 0x7ff0fbf06c10>{number = 3, name = (null)}
+event strSubject  next(0) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  next(1) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  next(2) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  next(3) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  next(4) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  next(5) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  next(6) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+event strSubject  error(testError) <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+disposing strSubject <NSThread: 0x7ff0fbd07d00>{number = 1, name = main}
+```
+
+## Resources
+
+Еще одна техника, направленная скорее на поиск утечек памяти, - это переменная `Resources.total`. Она закрыта за 
+флагом `TRACE_RESOURCES`, и что бы воспользоваться ей, придется обновить настройки проекта и перебилдить RxSwift. Если Вы используете [cocoapods](https://www.raywenderlich.com/626-cocoapods-tutorial-for-swift-getting-started), то для использования этой техники, Вам нужно будет обновить pod file и запустить `pod install`:
+
+```swift
+post_install do |installer|
+  installer.pods_project.targets.each do |target|
+    if target.name == 'RxSwift'
+      target.build_configurations.each do |config|
+        if config.name == 'Debug'
+          config.build_settings['OTHER_SWIFT_FLAGS'] ||= ['-D', 'TRACE_RESOURCES']
+        end
+      end
+    end
+  end
+end
+```
+
+Если возникает проблема `Module 'RxSwift' has no member named 'resourceCount'`, возможно, стоит пересмотреть предложенные варианты в [378 issue](https://github.com/ReactiveX/RxSwift/issues/378).
+
+### Resources.total
+ 
+Заглянув в файл `Rx.swift`, мы находим структуру `Resources`.
+
+```swift
+#if TRACE_RESOURCES
+    fileprivate let resourceCount = AtomicInt(0)
+
+    /// Resource utilization information
+    public struct Resources {
+        /// Counts internal Rx resource allocations (Observables, Observers, Disposables, etc.). This provides a simple way to detect leaks during development.
+        public static var total: Int32 {
+            return load(resourceCount)
+        }
+
+        /// Increments `Resources.total` resource count.
+        ///
+        /// - returns: New resource count
+        public static func incrementTotal() -> Int32 {
+            return increment(resourceCount)
+        }
+
+        /// Decrements `Resources.total` resource count
+        ///
+        /// - returns: New resource count
+        public static func decrementTotal() -> Int32 {
+            return decrement(resourceCount)
+        }
+    }
+#endif
+```
+
+Как работает эта техника? В RxSwift фреймворке довольно много классов. Когда мы создаем экземпляры класса, мы увеличиваем счетчик `Resources.total`, а когда созданный объект удаляется - счетчик уменьшается.
+Вот сокращенный пример из файла `BehaviorSubject.swift`:
+
+```swift
+public final class BehaviorSubject<Element> {
+
+    public init(value: Element) {
+        self._element = value
+
+        #if TRACE_RESOURCES
+            _ = Resources.incrementTotal()
+        #endif
+    }
+    
+    #if TRACE_RESOURCES
+        deinit {
+        _ = Resources.decrementTotal()
+        }
+    #endif
+}
+```
+
+Мне нравится чек-лист по поиску утечек памяти, доступный в документации:
+
+* откройте интересующий Вас экран;
+* вернитесь обратно;
+* посмотрите значение `Resources.total`;
+* откройте интересующий Вас экран второй раз;
+* вернитесь обратно;
+* посмотрите значение `Resources.total`;
+* если значения не совпадают, с очень большой долей вероятности Вы имеете дело с утечкой памяти;
+
+Почему нужно дважды открыть\закрыть экран? По той причине, что для его работы могут дополнительно выделяться ресурсы "по запросу" (lazy) и жить все остальное время использования приложения.
+
+В целях отладки можно добавить таймер в `AppDelegate`, задачей которого будет выводить в лог количество объектов:
+
+```swift
+_ = Observable<Int>.interval(1, scheduler: MainScheduler.instance)
+  .subscribe(onNext: { _ in
+    print("Resource count \(RxSwift.Resources.total)")
+  })
+```
+
+Также в структуре `Resources` есть еще 2 переменные, которые могут пригодиться в некоторых случаях: `numberOfMapOperators` и `numberOfSerialDispatchQueueObservables`

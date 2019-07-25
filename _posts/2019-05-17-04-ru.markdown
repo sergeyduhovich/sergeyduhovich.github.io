@@ -1,0 +1,620 @@
+---
+layout: single
+title: "Traits"
+ref: traits
+date: 2019-05-17 12:00:00 +0300
+categories: rxswift
+lang: ru
+---
+
+Тип Observable в RxSwift более чем самодостаточен. Но случается так, что нам нужно гарантировать чуть более конкретное поведение. Например, только один `next` ивент, вместо 0 и более для URL запросов, проброс `next` ивентов на Main поток при работе с UI, и т.д.
+
+Описание traits доступно на [github странице](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/Traits.md). Я попробую описать их поведение и некоторые неочевидные сценарии их использования.
+
+## Проблема
+
+Давайте посмотрим на следующий протокол:
+
+```swift
+protocol HotelListViewModelType {
+	var hotels: Observable<[Hotel]> { get }
+	var searchInput: BehaviorRelay<String> { get }
+}
+```
+
+Возможной реализацией этого протокола будет следующий класс:
+
+```swift
+class HotelViewModel: HotelListViewModelType {
+
+  let searchInput = BehaviorRelay<String>(value: "")
+
+  var hotels: Observable<[Hotel]> {
+      return searchInput
+      .throttle(0.3, scheduler: MainScheduler.instance)
+      .flatMapLatest { [weak self] query -> Observable<[Hotel]> in
+        guard let self = self else { return .empty() }
+        return self.searchHotels(query: query)
+          .observeOn(MainScheduler.instance)
+          .catchErrorJustReturn([])
+      }
+      .share(replay: 1)
+  }
+
+  func searchHotels(query: String) -> Observable<[Hotel]> {
+    return Observable<Int>
+      .timer(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
+      .map { _ in
+        return [
+          Hotel(title: "Güden-Pearl Hotel", rating: 4.8),
+          Hotel(title: "Minsk Penthouse", rating: 5),
+          Hotel(title: "The Square Hotel", rating: 4.8),
+          Hotel(title: "Appartamento Panoramico", rating: 5),
+          Hotel(title: "Hotel Lungarno", rating: 4.8),
+        ]
+    }
+  }
+}
+```
+
+Но только посмотрев на протокол, нельзя сказать, будут ли ивенты пробрасываться на Main поток, будут ли обрабатываться ошибки. И зная только о протоколе, мы можем перестраховаться и указать явно поток, на котором будут обрабатываться `next` ивенты и добавим обработку ошибок.
+
+```swift
+    let safeHotels = viewModel.hotels
+      .observeOn(MainScheduler.instance)
+      .catchErrorJustReturn([])
+      .publish()
+
+    safeHotels
+      .bind(to: tableView.rx.items(cellIdentifier: "cell", cellType: UITableViewCell.self)) { index, model, cell in
+        cell.textLabel?.text = model.title
+      }
+      .disposed(by: disposeBag)
+
+    safeHotels
+      .map { "we found \($0.count) hotels for you"}
+      .bind(to: label.rx.text)
+      .disposed(by: disposeBag)
+
+    safeHotels
+      .map { String(format: "%.2f", $0.map { $0.rating }.reduce(0, +) / Float($0.count)) + " avg." }
+      .bind(to: label2.rx.text)
+      .disposed(by: disposeBag)
+
+    safeHotels
+      .connect()
+      .disposed(by: disposeBag)
+```
+
+Проделана двойная работа.
+
+Второй вариант "указать" как ведет себя Observable - это комментарии. Мы можем добавить комментарии в описании протокола, но где гарантии, что реализующий его класс будет им следовать?
+
+## Решение
+
+**Traits** были введены именно для этих целей - уточнять поведение Observable. Что бы одного взгляда на возвращаемый тип было достаточно для того, чтобы понять как он будет себя вести. Они полностью опциональны, приложение можно написать на обычных Observable без ущерба в производительности, но trait добавляет чуть больше ясности в контекст их использования. 
+
+## SharedSequence + SharingStrategyProtocol: Driver / Signal
+
+## Driver
+
+Пожалуй, самый известный trait - это Driver из RxCocoa:
+
+* не может отправить ошибку;
+* доставляет ивенты на Main поток;
+* хранит 1 ивент, [общие ресурсы для подписки](http://dukhovich.by/ru/15-connectable-observable), используя эквивалент share(replay: 1, scope: .whileConnected);
+* подходит для свойств типа text, alpha, image и др.;
+
+Эквивалент Driver может быть создан следующей цепочкой:
+
+```swift
+let driverSequence = rawObservable
+  .observeOn(MainScheduler.instance)
+  .catchErrorJustReturn(onErrorJustReturn)
+  .share(replay: 1, scope: .whileConnected)
+```
+
+Из Observable можно получить Driver 3 способами:
+
+```swift
+public func asDriver(onErrorJustReturn: E) -> Driver<E>
+public func asDriver(onErrorDriveWith: Driver<E>) -> Driver<E>
+public func asDriver(onErrorRecover: @escaping (_ error: Swift.Error) -> Driver<E>) -> Driver<E>
+```
+
+### onErrorJustReturn:
+
+Что подразумевается под "не может отправить ошибку"? Driver никогда не присылает ивент `error`, даже если Observable, который был использован для его создания, присылает. Но когда так случается, и исходный Observable все-же присылает ошибку, Driver ее не пробрасывает, а вместо этого он конвертирует ее в `next` ивент со значением по умолчанию, которе является аргументом метода. После этого Driver завершается ивентом `completed`.
+
+Пример:
+
+```swift
+enum DataError: Error {
+  case testError
+}
+
+let disposeBag = DisposeBag()
+let strSubject = PublishSubject<String>()
+
+let strDriver = strSubject
+  .debug("Observable")
+  .asDriver(onErrorJustReturn: "default value")
+  .debug("Driver")
+
+strDriver
+  .drive()
+  .disposed(by: disposeBag)
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 1) { [weak self] in
+    self?.strSubject.on(.next("first"))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 2) { [weak self] in
+    self?.strSubject.on(.next("second"))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 3) { [weak self] in
+    self?.strSubject.on(.error(DataError.testError))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 4) { [weak self] in
+    self?.strSubject.on(.next("third"))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 5) { [weak self] in
+    guard let self = self else { return }
+    strDriver
+      .drive()
+      .disposed(by: self.disposeBag)
+}
+```
+
+В консоли:
+
+```swift
+//Driver -> subscribed
+//Observable -> subscribed
+//Observable -> Event next(first)
+//Driver -> Event next(first)
+//Observable -> Event next(second)
+//Driver -> Event next(second)
+//Observable -> Event error(testError)
+//Driver -> Event next(default value)
+//Driver -> Event completed
+//Driver -> isDisposed
+//Observable -> isDisposed
+//Driver -> subscribed
+//Observable -> subscribed
+//Observable -> Event error(testError)
+//Driver -> Event next(default value)
+//Driver -> Event completed
+//Driver -> isDisposed
+//Observable -> isDisposed
+```
+
+В этом примере наш Observable отправил два `next` ивента, потом отправил ошибку. В консоли видно, как ошибка на уровне Observable была сконвертирована в `next` на уровне Driver.
+
+Второй интересный момент в нашем примере - это вторая подписка, уже после того как исходная Observable завершилась с ошибкой. Давайте еще раз посмотрим на Driver-эквивалентную запись:
+
+```swift
+let driverSequence = rawObservable
+  .observeOn(MainScheduler.instance)
+  .catchErrorJustReturn(onErrorJustReturn)
+  .share(replay: 1, scope: .whileConnected)
+```
+
+Когда мы подписались на обновления драйвера во второй раз, первая подписка уже завершилась, и у оператора `share()` не было ничего, чем бы он мог поделиться с новым подписчиком. Поэтому он запросил создание цепочки по-новой снизу вверх - `catchErrorJustReturn`->`observeOn`->`rawObservable`, у каждого из этих топераторов по-новой был вызван метод `subscribe`. `rawObservable` возвращает ошибку, ошибка доставляется на Main поток, ошибка трансформируется оператором `catchErrorJustReturn` в `next`+`completed`
+
+### onErrorDriveWith:
+
+Вместо того, что бы указывать всего одно значение, мы можем указать резервный Driver. 
+
+```swift
+enum DataError: Error {
+  case testError
+}
+
+let disposeBag = DisposeBag()
+let strSubject = PublishSubject<String>()
+let anotherStrRelay = BehaviorRelay<String>(value: "")
+lazy var anotherDriver = anotherStrRelay.asDriver()
+
+Observable<Int>.interval(1, scheduler: MainScheduler.instance)
+  .do(onNext: { [weak self] item in
+    self?.anotherStrRelay.accept(String(item))
+  })
+  .subscribe()
+  .disposed(by: disposeBag)
+
+let strDriver = strSubject
+  .asDriver(onErrorDriveWith: anotherDriver)
+  .debug("driver")
+
+strDriver
+  .drive()
+  .disposed(by: disposeBag)
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 1) { [weak self] in
+    self?.strSubject.on(.next("first"))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 2) { [weak self] in
+    self?.strSubject.on(.next("second"))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 3) { [weak self] in
+    self?.strSubject.on(.error(DataError.testError))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 4) { [weak self] in
+    self?.strSubject.on(.next("third"))
+}
+
+DispatchQueue.main
+  .asyncAfter(deadline: DispatchTime.now() + 5) { [weak self] in
+    guard let self = self else { return }
+    strDriver
+      .debug("second subscription")
+      .drive()
+      .disposed(by: self.disposeBag)
+}
+```
+
+Переключение между драйверами происходит незаметно, мы видим только `next` ивенты:
+
+```swift
+//driver -> subscribed
+//driver -> Event next(first)
+//driver -> Event next(second)
+//driver -> Event next(2)
+//driver -> Event next(3)
+//driver -> Event next(4)
+//second subscription -> subscribed
+//second subscription -> Event next(4)
+//driver -> Event next(5)
+//second subscription -> Event next(5)
+//driver -> Event next(6)
+//second subscription -> Event next(6)
+//driver -> Event next(7)
+//second subscription -> Event next(7)
+```
+
+Все здорово, но нам нужно иметь еще и запасной Driver, к тому же и он может в какой-то момент завершиться с ошибкой.
+
+### onErrorRecover:
+
+Этот метод похож на предыдущий, но вместо аргумента типа Driver, мы импользуем замыкание. Но я настоятельно рекомендую не использовать замыкание для того, что бы описать что-то наподобии рекурсии и бесконечного восстановления Driver. Позже я опишу как работают такого рода замыкания на примере `Catch` Producer-а и `CatchSequenceSink`.
+
+```swift
+strSubject
+  .asDriver { [weak self] error -> Driver<String> in
+    guard let self = self else { return Driver.empty() }
+    return self.anotherDriver
+  }
+  .drive()
+  .disposed(by: disposeBag)
+```
+
+## Signal
+
+Signal как и Driver является частью RxCocoa. 
+
+* не может отправить ошибку;
+* доставляет ивенты на Main поток;
+* использует [общие ресурсы для подписки](http://dukhovich.by/ru/15-connectable-observable), но не хранит последний элемент, эквивалент share(replay: 0, scope: .whileConnected);
+* подходит для "будущих" нажатий на кнопку, изменения значения слайдер и др.;
+
+Разница между Driver и Signal лишь в том, что сигнал не повторяет последнее значение новым подписчикам. Это как сравнивать ReplaySubject и PublishSubject. В остальном Signal и Driver одинаковы.
+
+Чтобы получить Signal из Observable есть 3 метода:
+
+```swift
+public func asSignal(onErrorJustReturn: E) -> Signal<E>
+public func asSignal(onErrorSignalWith: Signal<E>) -> Signal<E>
+public func asSignal(onErrorRecover: @escaping (_ error: Swift.Error) -> Signal<E>) -> Signal<E>
+```
+
+Driver и Signal очень подходят для использования в MVVM-Х архитектурах. Ими очень удобно описывать свойства viewModel - Driver для изображений, названий, альфы, Signal для пользовательского ввода. 
+
+## PrimitiveSequence: Single / Completable / Maybe
+
+## Single
+
+* эмитит всего 1 next ивент или ошибку;
+* не использует общие ресурсы;
+* может быть создан с нуля по аналогии с Observable;
+* под капотом хранит обычный Observable;
+* идеально подходит для сетевых запросов с возвращаемым значением (GET, POST);
+* доступны `asObservable()` / `asSingle()` методы;
+
+Single - пример очень конкретного типа из основного репозитория RxSwift. Его не обязательно создавать с нуля, можно воспользоваться методами преобразования `asSingle()`, или `asObservable()` в обратную сторону. Любой Observable может быт сконвертирован в Single, но есть нюансы, давайте посмотрим на следующие примеры:
+
+* Observable эмитит один next и завершается;
+* Observable эмитит два next и завершается;
+* Observable не эмитит ни одного next и завершается;
+* Observable эмитит один next и продолжает работать;
+
+### 1
+
+Observable эмитит один next и завершается:
+
+```swift
+  var strSubject = PublishSubject<String>()
+  let disposeBag = DisposeBag()
+  
+  strSubject
+  .asSingle()
+  .debug("asSingle()")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+  strSubject.on(.next("element"))
+  strSubject.on(.completed)
+```
+
+В этом случае `asSingle()` преобразует Observable в Single без каких-либо проблем:
+
+```swift
+asSingle() -> subscribed
+asSingle() -> Event next(element)
+asSingle() -> Event completed
+asSingle() -> isDisposed
+```
+
+### 2
+
+Observable эмитит два next и завершается:
+
+```swift
+  var strSubject = PublishSubject<String>()
+  let disposeBag = DisposeBag()
+  
+  strSubject
+  .asSingle()
+  .debug("asSingle()")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+  strSubject.on(.next("element1"))
+  strSubject.on(.next("element2"))
+  strSubject.on(.completed)
+```
+
+Мы получили ошибку:
+
+```swift
+asSingle() -> subscribed
+asSingle() -> Event error(Sequence contains more than one element.)
+asSingle() -> isDisposed
+```
+
+### 3
+
+Observable не эмитит ни одного next и завершается:
+
+```swift
+  var strSubject = PublishSubject<String>()
+  let disposeBag = DisposeBag()
+  
+  strSubject
+  .asSingle()
+  .debug("asSingle()")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+  strSubject.on(.completed)
+```
+
+Мы получили ошибку:
+
+```swift
+asSingle() -> subscribed
+asSingle() -> Event error(Sequence doesn't contain any elements.)
+asSingle() -> isDisposed
+```
+
+### 4
+
+Observable эмитит один next и продолжает работать:
+
+```swift
+  var strSubject = PublishSubject<String>()
+  let disposeBag = DisposeBag()
+  
+  strSubject
+  .asSingle()
+  .debug("asSingle()")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+  strSubject.on(.next("element1"))
+```
+
+Мы получили сообщение только о подписке, ни одного next ивента:
+
+```swift
+asSingle() -> subscribed
+```
+
+Это не ошибка, мы ждем пока Observable завершится, даже несмотря на то, что был один next ивент. В некоторых случаях, например работая с `flatMap` Вы можете ожидать одно поведение от преобразований, но получите совсем другое.
+
+Типичное решение данной проблемы заключается в добавлении `take(1)` перед тем как вызвать `asSingle()`. Давайте посмотрим на #2 пример с добавлением этого оператора:
+
+```swift
+  var strSubject = PublishSubject<String>()
+  let disposeBag = DisposeBag()
+  
+  strSubject
+  .take(1)
+  .asSingle()
+  .debug("asSingle()")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+  strSubject.on(.next("element1"))
+  strSubject.on(.next("element2"))
+  strSubject.on(.completed)
+```
+
+В этом случае Observable преобразуется в Single без проблем, хотя изначально там была ошибка.
+
+```swift
+asSingle() -> subscribed
+asSingle() -> Event next(element1)
+asSingle() -> Event completed
+asSingle() -> isDisposed
+```
+
+## Completable
+
+* эмитит completed ивент или ошибку;
+* не использует общие ресурсы;
+* может быть создан с нуля по аналогии с Observable;
+* под капотом хранит обычный Observable;
+* идеально подходит для сетевых запросов без возвращаемого значения (GET, POST);
+* альтернатива для Observable<Void>;
+* `asCompletable()` доступен только для PrimitiveSequence, в обратную сторону преобразуется с помощью `asObservable()`;
+
+Самый простой Completable может быть создан следующим образом:
+
+```swift
+Completable.empty()
+  .debug("completable")
+  .subscribe()
+  .disposed(by: disposeBag)
+```
+
+```swift
+completable -> subscribed
+completable -> Event completed
+completable -> isDisposed
+```
+
+Стоит упомянуть, что в некоторых цепочках преобразований, например с `flatMap` нужно помнить, что у Completable нет `next` ивентов. Давайте посмотрим на использование Completable с `flatMap`:
+
+### 1
+
+```swift
+strSubject
+  .debug("strSubject")
+  .flatMap { input -> Completable in
+    return Completable.empty().debug("completable")
+  }
+  .debug("flatMap")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+strSubject.on(.next("first"))
+strSubject.on(.next("second"))
+strSubject.on(.next("third"))
+```
+
+На первый взгляд может показаться, что мы должны для каждого `next` ивента `strSubject`-а получить один `next` после применения `flatMap`. Но на деле это не так, т.к. `flatMap` требует `next` ивентов, которых нет у Completable.
+
+```swift
+flatMap -> subscribed
+strSubject -> subscribed
+strSubject -> Event next(first)
+completable -> subscribed
+completable -> Event completed
+completable -> isDisposed
+strSubject -> Event next(second)
+completable -> subscribed
+completable -> Event completed
+completable -> isDisposed
+strSubject -> Event next(third)
+completable -> subscribed
+completable -> Event completed
+completable -> isDisposed
+```
+
+Мы видим только одну строчку с `flatMap -> subscribed`, финальная цепочка Observable не эмитит ивентов.
+
+### 2
+
+Давайте теперь преобразуем цепочку, добавив сразу после Completable один `next(Void())` используя `.andThen(.just(()))`:
+
+```swift
+strSubject
+  .debug("strSubject")
+  .flatMap { input -> Observable<Void> in
+    return Completable.empty()
+      .andThen(.just(()))
+      .debug("Observable Void")
+  }
+  .debug("flatMap")
+  .subscribe()
+  .disposed(by: disposeBag)
+
+strSubject.on(.next("first"))
+strSubject.on(.next("second"))
+strSubject.on(.next("third"))
+```
+
+Теперь мы видим `next` ивенты в консоли и для `flatMap`:
+
+```swift
+flatMap -> subscribed
+strSubject -> subscribed
+strSubject -> Event next(first)
+Observable Void -> subscribed
+Observable Void -> Event next(())
+flatMap -> Event next(())
+Observable Void -> Event completed
+Observable Void -> isDisposed
+strSubject -> Event next(second)
+Observable Void -> subscribed
+Observable Void -> Event next(())
+flatMap -> Event next(())
+Observable Void -> Event completed
+Observable Void -> isDisposed
+strSubject -> Event next(third)
+Observable Void -> subscribed
+Observable Void -> Event next(())
+flatMap -> Event next(())
+Observable Void -> Event completed
+Observable Void -> isDisposed
+```
+
+## Maybe
+
+* эмитит completed ивент, или один next ивент или ошибку;
+* не использует общие ресурсы;
+* может быть создан с нуля по аналогии с Observable;
+* под капотом хранит обычный Observable;
+* доступны `asObservable()` / `asMaybe()` методы;
+
+Если Вам когда-нибудь доводилось создавать Single используя Optional тип, то Maybe - отличная альтернатива этой записи. Например, в случае когда Single должен будет вернуть `.success(nil)`, Maybe аккуратно вернет `completed`. Что в свою очередь удобнее использовать в будущих преобразованиях. 
+
+Признаться, на практике данный trait используется достаточно редко.
+
+## Control Property / Control Event
+
+* являются одновременно Observer и Observable;
+* очень похожи на пару Driver/Signal, но привязаны к жизненному циклу UI элемента;
+* часть RxCocoa фреймворка;
+* ивенты доставляются на MainScheduler;
+* ивенты эмитятся только для начального состояния или пользовательского ввода;
+
+ControlProperty хранит последнее значение для новых подписчиков, ControlEvent - нет. Давайте посмотрим на подписку на свойство UISwitch `rx.isOn` `ControlProperty<Bool>`:
+
+```swift
+switcher.rx.isOn
+  .subscribe(onNext: { value in
+    print(value)
+  })
+  .disposed(by: disposeBag)
+
+switcher.isOn = false
+```
+
+Несмотря на то, что `isOn` было дополнительно установлено в `false` и UI содержал актуальное значение, ControlProperty не сэмитил `.next(false)`. Эту опцию довольно удобно использовать для настройки двухсторонних биндингов.

@@ -1,0 +1,385 @@
+---
+layout: single
+title: "Subjects"
+ref: subjects
+date: 2019-07-19 12:00:00 +0300
+categories: rxswift
+lang: ru
+---
+
+Subject - тип, который может быть использован как Observable так и как Observer.
+
+`SubjectType` протокол расширяет функционал `ObservableType` протокола, добавляя функционал Observer-а:
+
+#### SubjectType
+
+```swift
+public protocol SubjectType : ObservableType {
+  associatedtype SubjectObserverType : ObserverType
+  func asObserver() -> SubjectObserverType
+}
+```
+
+#### ObservableType
+
+```swift
+public protocol ObservableType : ObservableConvertibleType {
+  func subscribe<O: ObserverType>(_ observer: O) -> Disposable where O.E == E
+}
+```
+
+#### ObserverType
+
+```swift
+public protocol ObserverType {
+  associatedtype E
+  func on(_ event: Event<E>)
+}
+```
+
+Как Observer, он может опдписаться на другие Observable, и поскольку он является Observable, он будет пробрасывать ивенты, полученные от других Observable всем, кто на него подпишется.
+
+Обычно subject-ы используюятся в случаях, когда есть необходимость управлять ивентами, которые будут получать его подписчики.
+
+Всего есть 4 типа subjects:
+
+* PublishSubject
+* BehaviorSubject
+* ReplaySubject
+* AsyncSubject
+
+### PublishSubject
+
+Пожалуй, самым популярным является `PublishSubject`. Инициализируется без аргументов. Доставляет своим подписчикам только новые ивенты, которые будут эмититься после подписки.
+
+```swift
+let publishSubject = PublishSubject<String>()
+
+publishSubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+publishSubject.onNext("first")
+publishSubject.onNext("second")
+
+publishSubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+publishSubject.onNext("third")
+publishSubject.onNext("fourth")
+
+publishSubject.onCompleted()
+
+publishSubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+В консоли увидим:
+
+```swift
+subscription 1 -> subscribed
+subscription 1 -> Event next(first)
+subscription 1 -> Event next(second)
+subscription 2 -> subscribed
+subscription 1 -> Event next(third)
+subscription 2 -> Event next(third)
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> subscribed
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+```
+
+`subscription 2` не получил `first` и `second` ивентов, т.к. они были отправлены до его подписки, ивенты `third` и `fourth` были получены, т.к. они были отправлены уже после подписки.
+
+Когда произошла подписка `subscription 3`, subject уже получил ивент `completed`, и эта подписка автоматически получила `completed` без каких-либо `next` ивентов.
+
+### BehaviorSubject
+
+BehaviorSubject доставляет последний `next` ивент подписчику в момент подписки. Но в момент инициализации мы должны передать значение по умолчанию, которое будет использоваться как последний `next` ивент для новых подписчиков до того момента, как subject не отправит что-нибудь новое.
+
+```swift
+let behaviorSubject = BehaviorSubject<String>(value: "first")
+
+behaviorSubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+behaviorSubject.onNext("second")
+
+behaviorSubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+behaviorSubject.onNext("third")
+behaviorSubject.onNext("fourth")
+
+behaviorSubject.onCompleted()
+
+behaviorSubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+```swift
+subscription 1 -> subscribed
+subscription 1 -> Event next(first)
+subscription 1 -> Event next(second)
+subscription 2 -> subscribed
+subscription 2 -> Event next(second)
+subscription 1 -> Event next(third)
+subscription 2 -> Event next(third)
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> subscribed
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+```
+
+Хоть вывод в консоли для `subscription 1` такой же как в случае с `PublishSubject`,  но subject отправлял ивенты немного в другом порядке. Первый ивент был передан в момент инициализации, и отправлен в момент подписки. Второй ивент был отправлен subject уже после подписки.
+
+`subscription 2` получил последний ивент в момент подписки - `second`. После этого были получены `third` и `fourth` как и ожидалось.
+
+Когда произошла подписка `subscription 3`, subject уже получил ивент `completed`, и эта подписка автоматически получила `completed` без каких-либо `next` ивентов.
+
+### ReplaySubject
+
+Повторяет до N последних `next` ивентов подписчикам в момент подписки.
+
+```swift
+let replaySubject = ReplaySubject<String>.create(bufferSize: 2)
+
+replaySubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onNext("first")
+
+replaySubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onNext("second")
+
+replaySubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onNext("third")
+replaySubject.onNext("fourth")
+
+replaySubject
+    .debug("subscription 4")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onCompleted()
+
+replaySubject
+    .debug("subscription 5")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+```swift
+subscription 1 -> subscribed
+subscription 1 -> Event next(first)
+subscription 2 -> subscribed
+subscription 2 -> Event next(first)
+subscription 1 -> Event next(second)
+subscription 2 -> Event next(second)
+subscription 3 -> subscribed
+subscription 3 -> Event next(first)
+subscription 3 -> Event next(second)
+subscription 1 -> Event next(third)
+subscription 2 -> Event next(third)
+subscription 3 -> Event next(third)
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 3 -> Event next(fourth)
+subscription 4 -> subscribed
+subscription 4 -> Event next(third)
+subscription 4 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+subscription 4 -> Event completed
+subscription 4 -> isDisposed
+subscription 5 -> subscribed
+subscription 5 -> Event next(third)
+subscription 5 -> Event next(fourth)
+subscription 5 -> Event completed
+subscription 5 -> isDisposed
+```
+
+* Когда была совершена подписка `subscription 1`, subject не отправил ни одного `next` ивента, поэтому в момент подписки ничего не пришло.
+* Когда была совершена подписка `subscription 2`, subject до этого момента уже успел отправить 1 `next` ивент, который и был отправлен в момент подписки.
+* Когда была совершена подписка `subscription 3`, subject до этого момента  отправил 2 `next` ивента, которые и были отправлены в момент подписки.
+* Когда была совершена подписка `subscription 4`, subject до этого момента отправил 4 `next` ивента, но поскольку параметр `N` в нашем случае равен 2, то в момент подписки было отправлено всего 2 `next` ивента.
+* И, пожалуй, самая интересная особенность этого типа. Когда была совершена подписка `subscription 5`, subject уже получил `completed` ивент, но несмотря на это, подписчику перед `completed` было отправлено 2 последних `next` ивента. 
+
+Когда мы рассматривали [connectable Observable](http://dukhovich.by/ru/15-connectable-observable), для случая ниже, наблюдался тот же эффект replay. Когда последний подписчик отписывался, и спустя какое-то время появлялся новый подписчик, он получал последние значения, которые получал последний подписчик.
+
+```swift
+Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
+  .multicast(ReplaySubject<Int>.create(bufferSize: 2))
+  .refCount()
+```
+
+### AsyncSubject
+
+По правде говоря, я не припомню, что бы где-то использовал этот тип. Но раз это subject, то его тоже стоит упомянуть в статье.
+
+`AsyncSubject` эмитит только одно последнее значение, и то, в тот момент, когда subject отправит `completed` ивент.
+
+```swift
+let asyncSubject = AsyncSubject<String>()
+
+asyncSubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+asyncSubject.onNext("first")
+asyncSubject.onNext("second")
+
+asyncSubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+asyncSubject.onNext("third")
+asyncSubject.onNext("fourth")
+
+asyncSubject.onCompleted()
+
+asyncSubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+```swift
+subscription 1 -> subscribed
+subscription 2 -> subscribed
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> subscribed
+subscription 3 -> Event next(fourth)
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+```
+
+Все подписчики получили последний `fourth` ивент, даже `subscription 3`, несмотря на то что подписался он после того, как subject сэмитил `completed`.
+
+Если бы subject не отправил ни одного `next` ивента, то у всех подписчиков мы бы увидели только `subscribed` и `isDisposed`.
+
+### Subjects в MVVM
+
+Subject-ы часто используются в MVVM-подобных архитектурах. Давайте рассмотрим `LoginViewModel` похожую на ту, которую мы разбирали в статье про [RxTest](http://dukhovich.by/ru/25-rx-test):
+
+```swift
+struct LoginViewModel {
+  var loginInput: PublishSubject<String> = .init()
+  var passwordInput: PublishSubject <String> = .init()
+  var loginAction: PublishSubject <Void> = .init()
+}
+```
+
+Биндинги во вью контроллере:
+
+```swift
+usernameField.rx.text.orEmpty
+  .bind(to: viewModel.loginInput)
+  .disposed(by: disposeBag)
+
+passwordField.rx.text.orEmpty
+  .bind(to: viewModel.passwordInput)
+  .disposed(by: disposeBag)
+
+loginButton.rx.tap
+  .bind(to: viewModel.loginAction)
+  .disposed(by: disposeBag)
+```
+
+
+Метод `bind` - сокращенная версия `subscribe`. Можно обойтись без нее, записав:
+
+```swift
+usernameField.rx.text.orEmpty
+  .subscribe(onNext: { [weak self] username in
+    self?.viewModel.loginInput.accept(username)
+  })
+  .disposed(by: disposeBag)
+
+passwordField.rx.text.orEmpty
+  .subscribe(onNext: { [weak self] password in
+    self?.viewModel.passwordInput.accept(password)
+  })
+  .disposed(by: disposeBag)
+
+loginButton.rx.tap
+  .subscribe(onNext: { [weak self] tap in
+    self?.viewModel.loginAction.accept(tap)
+  })
+  .disposed(by: disposeBag)
+```
+
+Хоть эти 2 блока на первый взгляд выглядят одинаково, между ними есть небольшое различие. Второй вариант более безопасный, в subject пробрасываются только `next` ивенты. В то время как `bind` пробрасывает все, `next`, `error`, `completed`:
+
+```swift
+private func bind<Observer: ObserverType>(to observers: [Observer]) -> Disposable where Observer.Element == Element {
+    return self.subscribe { event in
+        observers.forEach { $0.on(event) }
+    }
+}
+```
+
+Одним из основных контрактов Rx является особенность Observable после эмита `error` или `completed` ивента. Observable завершается. Subject-ы не исключение. 
+
+Более удобными типами с точки зрения применения их в MVVM являются **BehaviorRelay** и **PublishRelay**. Они находятся в `RxCocoa` до версии `4.5`, и в `RxRelay` начиная с версии `5.0`. Эти типы не реагируют на `completed`, для `error` есть несколько замечаний:
+
+```swift
+private func bind(to relays: [PublishRelay<Element>]) -> Disposable {
+    return subscribe { e in
+        switch e {
+        case let .next(element):
+            relays.forEach {
+                $0.accept(element)
+            }
+        case let .error(error):
+            rxFatalErrorInDebug("Binding error to publish relay: \(error)")
+        case .completed:
+            break
+        }
+    }
+}
+```
+
+Когда Relay получит ошибку от какой-то подписки, то сработает метод `rxFatalErrorInDebug`. В production режиме в консоли появится лишний лог, в debug. режиме приложение крешнется, что вероятно ускорит поиск ошибки.

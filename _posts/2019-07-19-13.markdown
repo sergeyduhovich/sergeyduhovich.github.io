@@ -1,0 +1,384 @@
+---
+layout: single
+title: "Subjects"
+ref: subjects
+date: 2019-07-19 12:00:00 +0300
+categories: rxswift
+lang: en
+---
+
+Subject is a type that can be used as both, Observable and Observer.
+
+In RxSwift implementation, `SubjectType` protocol extends `ObservableType` adding Observer functionality:
+
+#### SubjectType
+
+```swift
+public protocol SubjectType : ObservableType {
+  associatedtype SubjectObserverType : ObserverType
+  func asObserver() -> SubjectObserverType
+}
+```
+
+#### ObservableType
+
+```swift
+public protocol ObservableType : ObservableConvertibleType {
+  func subscribe<O: ObserverType>(_ observer: O) -> Disposable where O.E == E
+}
+```
+
+#### ObserverType
+
+```swift
+public protocol ObserverType {
+  associatedtype E
+  func on(_ event: Event<E>)
+}
+```
+
+Because it is an observer, it can subscribe to one or more Observables, and because it is an Observable, it can pass through the items it observes by reemitting them, and it can also emit new items.
+
+Subjects are commonly used to have control over events which be delivered to subjects' subscribers.
+
+There are distinctive behaviors implemented by 4 types of subjects:
+
+* PublishSubject
+* BehaviorSubject
+* ReplaySubject
+* AsyncSubject
+
+### PublishSubject
+
+Let's start with `PublishSubject`. It initializes without arguments. It emits only new elements to subscribers.
+
+```swift
+let publishSubject = PublishSubject<String>()
+
+publishSubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+publishSubject.onNext("first")
+publishSubject.onNext("second")
+
+publishSubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+publishSubject.onNext("third")
+publishSubject.onNext("fourth")
+
+publishSubject.onCompleted()
+
+publishSubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+And it prints:
+
+```swift
+subscription 1 -> subscribed
+subscription 1 -> Event next(first)
+subscription 1 -> Event next(second)
+subscription 2 -> subscribed
+subscription 1 -> Event next(third)
+subscription 2 -> Event next(third)
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> subscribed
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+```
+
+As you can see, `subscription 2` received events `third` and `fourth`, but didn't `first` and `second`, because it subscribed after those 2 events were emitted.
+
+When `subscription 3` subscribed, subject had been already completed, and it received only completed event.
+
+### BehaviorSubject
+
+BehaviorSubject requires initial value to be able to re-emit it to any new subscriber. It emits latest event, then new all new to subscribers.
+
+```swift
+let behaviorSubject = BehaviorSubject<String>(value: "first")
+
+behaviorSubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+behaviorSubject.onNext("second")
+
+behaviorSubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+behaviorSubject.onNext("third")
+behaviorSubject.onNext("fourth")
+
+behaviorSubject.onCompleted()
+
+behaviorSubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+```swift
+subscription 1 -> subscribed
+subscription 1 -> Event next(first)
+subscription 1 -> Event next(second)
+subscription 2 -> subscribed
+subscription 2 -> Event next(second)
+subscription 1 -> Event next(third)
+subscription 2 -> Event next(third)
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> subscribed
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+```
+
+Even `subscription 1` received the same events as in the example of `PublishSubject`, the flow was different. First event was held as initial value and was sent at the moment of subscription as the latest actual event. Second event was received when subject emits it.
+
+In this case `subscription 2` received last actual event, which was `second`. And then received `third` and `fourth` when those 2 events were emited.
+
+When `subscription 3` subscribed, subject had been already completed, and it received only completed event.
+
+### ReplaySubject
+
+It replays up to N events for new subscribers if there is any event. 
+
+```swift
+let replaySubject = ReplaySubject<String>.create(bufferSize: 2)
+
+replaySubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onNext("first")
+
+replaySubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onNext("second")
+
+replaySubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onNext("third")
+replaySubject.onNext("fourth")
+
+replaySubject
+    .debug("subscription 4")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+replaySubject.onCompleted()
+
+replaySubject
+    .debug("subscription 5")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+```swift
+subscription 1 -> subscribed
+subscription 1 -> Event next(first)
+subscription 2 -> subscribed
+subscription 2 -> Event next(first)
+subscription 1 -> Event next(second)
+subscription 2 -> Event next(second)
+subscription 3 -> subscribed
+subscription 3 -> Event next(first)
+subscription 3 -> Event next(second)
+subscription 1 -> Event next(third)
+subscription 2 -> Event next(third)
+subscription 3 -> Event next(third)
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 3 -> Event next(fourth)
+subscription 4 -> subscribed
+subscription 4 -> Event next(third)
+subscription 4 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+subscription 4 -> Event completed
+subscription 4 -> isDisposed
+subscription 5 -> subscribed
+subscription 5 -> Event next(third)
+subscription 5 -> Event next(fourth)
+subscription 5 -> Event completed
+subscription 5 -> isDisposed
+```
+
+* By the time when `subscription 1` subscribed, there were no events, nothing to replay.
+* By the time when `subscription 2` subscribed, 1 event was emitted, and it was replayed.
+* By the time when `subscription 3` subscribed, 2 events were emitted, and they were replayed.
+* By the time when `subscription 4` subscribed, 4 events were emitted, but initial parameter N is 2 and only 2 last events were replayed.
+* And the most interesting part. When `subscription 5` subscribed, the subject had been completed, but it replayed 2 events and only after that it completed. 
+
+When we discovered how [connectable Observable](http://dukhovich.by/14-connectable-observable) works, for the code below there was the same effect, because of using `ReplaySubject`.
+
+```swift
+Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
+  .multicast(ReplaySubject<Int>.create(bufferSize: 2))
+  .refCount()
+```
+
+### AsyncSubject
+
+Truth be told, I've never seen an usage of this type of Subject. But because it is a subject, I need to explain how it works.
+
+An `AsyncSubject` emits the last value (and only the last value) emitted by the source Observable, and only after that source Observable completes.
+
+```swift
+let asyncSubject = AsyncSubject<String>()
+
+asyncSubject
+    .debug("subscription 1")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+asyncSubject.onNext("first")
+asyncSubject.onNext("second")
+
+asyncSubject
+    .debug("subscription 2")
+    .subscribe()
+    .disposed(by: disposeBag)
+
+asyncSubject.onNext("third")
+asyncSubject.onNext("fourth")
+
+asyncSubject.onCompleted()
+
+asyncSubject
+    .debug("subscription 3")
+    .subscribe()
+    .disposed(by: disposeBag)
+```
+
+```swift
+subscription 1 -> subscribed
+subscription 2 -> subscribed
+subscription 1 -> Event next(fourth)
+subscription 2 -> Event next(fourth)
+subscription 1 -> Event completed
+subscription 1 -> isDisposed
+subscription 2 -> Event completed
+subscription 2 -> isDisposed
+subscription 3 -> subscribed
+subscription 3 -> Event next(fourth)
+subscription 3 -> Event completed
+subscription 3 -> isDisposed
+```
+
+As you can see, all subscribers received only last `fourth` event and completed. If there hadn't been any next event from subject, subscribers wouldn't have received next events, only completed events.
+
+### Subjects in MVVM
+
+Subjects are commonly used in MVVM-like architectures. Let's say we have a `LoginViewModel` similar as we had in the [RxTest article](http://dukhovich.by/24-rx-test):
+
+```swift
+struct LoginViewModel {
+  var loginInput: PublishSubject<String> = .init()
+  var passwordInput: PublishSubject <String> = .init()
+  var loginAction: PublishSubject <Void> = .init()
+}
+```
+
+And we can bind to them in ViewController:
+
+```swift
+usernameField.rx.text.orEmpty
+  .bind(to: viewModel.loginInput)
+  .disposed(by: disposeBag)
+
+passwordField.rx.text.orEmpty
+  .bind(to: viewModel.passwordInput)
+  .disposed(by: disposeBag)
+
+loginButton.rx.tap
+  .bind(to: viewModel.loginAction)
+  .disposed(by: disposeBag)
+```
+
+I like the `bind` variant of `subscribe`, because it one-line and short. If I hadn't known this method, I would have written code above in the following way:
+
+```swift
+usernameField.rx.text.orEmpty
+  .subscribe(onNext: { [weak self] username in
+    self?.viewModel.loginInput.accept(username)
+  })
+  .disposed(by: disposeBag)
+
+passwordField.rx.text.orEmpty
+  .subscribe(onNext: { [weak self] password in
+    self?.viewModel.passwordInput.accept(password)
+  })
+  .disposed(by: disposeBag)
+
+loginButton.rx.tap
+  .subscribe(onNext: { [weak self] tap in
+    self?.viewModel.loginAction.accept(tap)
+  })
+  .disposed(by: disposeBag)
+```
+
+Even these 2 blocks of code looks very the same, they are not. The second variant is quite safer than first, cause it forwards **only** next events. Let's take a look at implementation of `bind` method:
+
+```swift
+private func bind<Observer: ObserverType>(to observers: [Observer]) -> Disposable where Observer.Element == Element {
+    return self.subscribe { event in
+        observers.forEach { $0.on(event) }
+    }
+}
+```
+
+`bind` method forwards all events, not only `next`, but `error` and `completed` as well. As we know from Observable contract, after first `error` or `completed` event are emitted, Observable sequence completes and can't emit any event. Subjects are not the exception.
+
+For this purpose in `RxCocoa` up to `4.5` version and in `RxRelay` from `5.0` version exist 2 wrappers for `BehaviorSubject` and `PublishSubject` - **BehaviorRelay** and **PublishRelay**. They don't react to `completed`, and there are some notes how they work with `error` event.
+
+`bind` implementation for Relays is the following:
+
+```swift
+private func bind(to relays: [PublishRelay<Element>]) -> Disposable {
+    return subscribe { e in
+        switch e {
+        case let .next(element):
+            relays.forEach {
+                $0.accept(element)
+            }
+        case let .error(error):
+            rxFatalErrorInDebug("Binding error to publish relay: \(error)")
+        case .completed:
+            break
+        }
+    }
+}
+```
+
+Don't be scared of `rxFatalErrorInDebug`. It helps you finding failable sequences bound to the relay in the debug mode, and just prints log in the production mode.

@@ -1,0 +1,419 @@
+---
+layout: single
+title: "RxTest"
+ref: rx-test
+date: 2019-06-14 12:00:00 +0300
+categories: rxswift
+lang: en
+---
+
+The classic of MVVM example is LoginViewModel with some use-cases, like enabling or disabling Login Button depending on login and password fields. I'm going to use [example from RxSwift repo](https://github.com/ReactiveX/RxSwift/blob/53cd723d40d05177e790c8c34c36cec7092a6106/RxExample/RxExample/Examples/SimpleValidation/SimpleValidationViewController.swift) with a little modification.
+
+![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-1.png)
+
+![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-2.png)
+
+The user types the login and password. If conditions meet, warning labels hides and the login button switches to the enabled state.
+
+### Start point
+
+In `LoginViewController` `viewDidLoad` method is implemented in the following way:
+
+```swift
+usernameLabel.text = "Username has to be at least \(Constants.minimalUsernameLength) characters"
+passwordLabel.text = "Password has to be at least \(Constants.minimalPasswordLength) characters"
+
+let usernameValid = usernameField.rx.text.orEmpty
+  .map { $0.count >= Constants.minimalUsernameLength }
+  .share(replay: 1)
+
+let passwordValid = passwordField.rx.text.orEmpty
+  .map { $0.count >= Constants.minimalPasswordLength }
+  .share(replay: 1)
+
+let everythingValid = Observable.combineLatest(usernameValid, passwordValid) { $0 && $1 }
+
+usernameValid
+  .bind(to: passwordField.rx.isUserInteractionEnabled)
+  .disposed(by: disposeBag)
+
+usernameValid
+  .bind(to: usernameLabel.rx.isHidden)
+  .disposed(by: disposeBag)
+
+passwordValid
+  .bind(to: passwordLabel.rx.isHidden)
+  .disposed(by: disposeBag)
+
+everythingValid
+  .bind(to: loginButton.rx.isEnabled)
+  .disposed(by: disposeBag)
+
+loginButton.rx.tap
+  .subscribe(onNext: { [weak self] _ in
+    let controller = UIStoryboard(name: "Main", bundle: nil)
+      .instantiateViewController(withIdentifier: "HomeViewController")
+    self?.navigationController?.pushViewController(controller, animated: true)
+  })
+  .disposed(by: disposeBag)
+```
+
+Even the code is written in RxSwift and works as expected, there is no way to test it to be sure that everything works as it should even after future modifications.
+
+### LoginViewModel
+
+We need to move the logic of creation and transformation of all Observable sequences to a separate class, in our case it will be `LoginViewModel`. All Observable sequences depend on login & password fields, they are represented by input. We'll define all inputs as variables of `PublishRelay`. Output fields will be represented by `Driver` trait.
+
+ViewModel looks like:
+
+```swift
+struct LoginViewModel {
+  var loginInput: PublishRelay<String> = .init()
+  var passwordInput: PublishRelay<String> = .init()
+  var loginAction: PublishRelay<Void> = .init()
+
+  var login: Driver<String>
+  var password: Driver<String>
+  var passwordFieldEnabled: Driver<Bool>
+  var loginWarningHidden: Driver<Bool>
+  var passwordWarningHidden: Driver<Bool>
+  var loginButtonEnabled: Driver<Bool>
+
+  var loginSignal: Signal<(String,String)>
+
+  let disposeBag = DisposeBag()
+
+  init() {
+    login = loginInput.asDriver(onErrorJustReturn: "")
+    password = passwordInput.asDriver(onErrorJustReturn: "")
+
+    let usernameValid = loginInput
+      .map { $0.count >= Constants.minimalUsernameLength }
+      .startWith(false)
+      .share(replay: 1)
+
+    let passwordValid = passwordInput
+      .map { $0.count >= Constants.minimalPasswordLength }
+      .startWith(false)
+      .share(replay: 1)
+
+    let everythingValid = Observable.combineLatest(usernameValid, passwordValid) { $0 && $1 }
+
+    passwordFieldEnabled = usernameValid
+      .asDriver(onErrorJustReturn: false)
+
+    loginWarningHidden = usernameValid
+      .asDriver(onErrorJustReturn: false)
+
+    passwordWarningHidden = passwordValid
+      .asDriver(onErrorJustReturn: false)
+
+    loginButtonEnabled = everythingValid
+      .asDriver(onErrorJustReturn: false)
+
+    loginSignal = loginAction
+      .withLatestFrom(loginInput)
+      .withLatestFrom(passwordInput) { ($0, $1) }
+      .asSignal(onErrorJustReturn: ("", ""))
+  }
+}
+```
+
+In some architecture approaches `input` and `output` might have their own distinctive types. Check out [this article](https://medium.com/smoke-swift-every-day/rxswift-viewmodel-done-right-532c1a6ede2f). For small projects it might look like overengineering if you are not going to use different viewModels for one viewController.
+
+And the updated `viewDidLoad` method:
+
+```swift
+    usernameLabel.text = "Username has to be at least \(Constants.minimalUsernameLength) characters"
+    passwordLabel.text = "Password has to be at least \(Constants.minimalPasswordLength) characters"
+
+    usernameField.rx.text.orEmpty
+      .bind(to: viewModel.loginInput)
+      .disposed(by: disposeBag)
+
+    passwordField.rx.text.orEmpty
+      .bind(to: viewModel.passwordInput)
+      .disposed(by: disposeBag)
+
+    loginButton.rx.tap
+      .bind(to: viewModel.loginAction)
+      .disposed(by: disposeBag)
+
+    viewModel.login
+      .drive(usernameField.rx.text)
+      .disposed(by: disposeBag)
+
+    viewModel.password
+      .drive(passwordField.rx.text)
+      .disposed(by: disposeBag)
+
+    viewModel.passwordFieldEnabled
+      .drive(passwordField.rx.isUserInteractionEnabled)
+      .disposed(by: disposeBag)
+
+    viewModel.loginWarningHidden
+      .drive(usernameLabel.rx.isHidden)
+      .disposed(by: disposeBag)
+
+    viewModel.passwordWarningHidden
+      .drive(passwordLabel.rx.isHidden)
+      .disposed(by: disposeBag)
+
+    viewModel.loginButtonEnabled
+      .drive(loginButton.rx.isEnabled)
+      .disposed(by: disposeBag)
+
+    viewModel.loginSignal
+      .emit(onNext: { [weak self] (login, password) in
+        print(login, password)
+        let controller = UIStoryboard(name: "Main", bundle: nil)
+          .instantiateViewController(withIdentifier: "HomeViewController")
+        self?.navigationController?.pushViewController(controller, animated: true)
+      })
+      .disposed(by: disposeBag)
+```
+
+Much more code. But right now we are able to test our logic inside `init` method in `LoginViewModel`. And ViewController contains only bindings which are not necessary to be tested.
+
+## Simple test
+
+The core class of RxTest is `TestScheduler`. It's a very specific scheduler as it uses virtual time and was created to be used in tests. There are methods you'll use a lot:
+
+```swift
+//1
+func createObserver<Element>(_ type: Element.Type) -> TestableObserver<Element>
+
+//2
+func createColdObservable<Element>(_ events: [Recorded<Event<Element>>]) -> TestableObservable<Element>
+func createHotObservable<Element>(_ events: [Recorded<Event<Element>>]) -> TestableObservable<Element>
+
+//3
+func start()
+```
+
+0. This method creates an observer which could be used as a parameter for `bind`/`drive` methods. All events will be stored and accessible in `events` property;
+0. These methods return a TestableObservable with predefined, recorded events; 
+0. This method starts its scheduler;
+
+
+I've written a simple test-case for `LoginViewModel`:
+
+```swift
+class LoginViewModelTests: XCTestCase {
+
+  var testScheduler: TestScheduler!
+  var sut: LoginViewModel!
+  var disposeBag: DisposeBag!
+
+  override func setUp() {
+    testScheduler = TestScheduler(initialClock: 0)
+    sut = LoginViewModel()
+    disposeBag = DisposeBag()
+  }
+  
+  override func tearDown() {
+    testScheduler = nil
+    sut = nil
+    disposeBag = nil
+  }
+  
+  func test5LettersEnablesPassword() {
+    //1
+    let boolObserver = testScheduler.createObserver(Bool.self)
+
+    //2
+    sut.passwordFieldEnabled
+      .drive(boolObserver)
+      .disposed(by: disposeBag)
+
+    //4
+    let userInputEvents: [Recorded<Event<String>>] = [
+      .next(10, "use"),
+      .next(20, "username"),
+      .next(30, "user")
+    ]
+
+    //3
+    testScheduler.createColdObservable(userInputEvents)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    //5
+    testScheduler.start()
+
+    //6
+    XCTAssertEqual(boolObserver.events, [
+      .next(0, false),
+      .next(10, false),
+      .next(20, true),
+      .next(30, false)
+      ])
+  }
+}
+```
+
+0. `TestScheduler` was used to create an observer, which was connected to "output" `var passwordFieldEnabled: Driver<Bool>` of viewModel;
+0. Each time viewModel emmits an element it will be forwarded to this observer;
+0. Then we created a testable `Observable` of `String` with specified events over the virtual time;
+0. `.next(10, "use")`and `.next(20, "username")` represent userInput with the specific time. This time is not connected to seconds, just abstractions. This time will be used later in Assertion block;
+0. To make all this stuff work we need to start our scheduler;
+0. Then we check our expectations with the recorded events;
+
+Our viewModel emits `.next(0, false)` when the observer subscribes to it. This logic is implemented by this operator `.startWith(false)` to avoid ambiguity. We want to update UI right after subscription.
+
+### Test without `TestScheduler`
+
+What if we had tried writing the test above without `TestScheduler`? I would probably have written something like:
+
+```swift
+class StraightForwardLoginViewModelTests: XCTestCase {
+
+  var sut: LoginViewModel!
+  var disposeBag: DisposeBag!
+  //1
+  var results: [(Bool, TimeInterval)]!
+  var scheduler: ConcurrentDispatchQueueScheduler!
+
+  override func setUp() {
+    sut = LoginViewModel()
+    disposeBag = DisposeBag()
+    results = []
+    scheduler = ConcurrentDispatchQueueScheduler(qos: .background)
+  }
+
+  override func tearDown() {
+    sut = nil
+    disposeBag = nil
+    results = nil
+    scheduler = nil
+  }
+
+  func test5LettersEnablesPassword() {
+
+    //2
+    let initialTimeStamp = Date.timeIntervalSinceReferenceDate
+
+    sut.passwordFieldEnabled
+      .drive(onNext: { [weak self] value in
+        //3
+        self?.results.append((value, Date.timeIntervalSinceReferenceDate - initialTimeStamp))
+      })
+      .disposed(by: disposeBag)
+
+    //4
+    let expectation = XCTestExpectation(description: "last event was sent")
+
+    //5
+    Observable<String>
+      .just("use")
+      .delay(0.1, scheduler: scheduler)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    Observable<String>
+      .just("username")
+      .delay(0.2, scheduler: scheduler)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    Observable<String>
+      .just("user")
+      .delay(0.3, scheduler: scheduler)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    Observable<Int>.empty()
+      .delay(0.4, scheduler: scheduler)
+      .subscribe(onCompleted: {
+        //6
+        expectation.fulfill()
+      })
+      .disposed(by: disposeBag)
+
+    //7
+    wait(for: [expectation], timeout: 1)
+
+    let event1 = results[0]
+    let event2 = results[1]
+    let event3 = results[2]
+    let event4 = results[3]
+
+    //8
+    XCTAssertEqual(event1.0, false)
+    XCTAssertEqual(event2.0, false)
+    XCTAssertEqual(event3.0, true)
+    XCTAssertEqual(event4.0, false)
+
+    //9
+    XCTAssertEqual(event1.1, 0.0, accuracy: 0.01)
+    XCTAssertEqual(event2.1, 0.1, accuracy: 0.01)
+    XCTAssertEqual(event3.1, 0.2, accuracy: 0.01)
+    XCTAssertEqual(event4.1, 0.3, accuracy: 0.01)
+  }
+}
+```
+
+0. I need an array where all events will be stored;
+0. I need the exact time when the test started to calculate the diff when events emit;
+0. Each next event of viewModel under test will be recorded;
+0. As for a regular async test, we have to work with `XCTestExpectation` instance;
+0. We configure a few observables with the predefined delay and bind them to viewModel input;
+0. `expectation.fulfill()` is needed to stop waiting in #7;
+0. It's how a usual expectation works;
+0. Assertion blocks;
+0. It's hard to assert Double values. Although I specified very partiucular delays, they won't be the same as I defined. See the real timing: `0.1` vs `0.10448598861694336`, `0.2` vs `0.20877599716186523`, `0.3` - `0.31061995029449463`;
+
+In comparison with the virtual scheduler, the second test looks overloaded. But it gives you another look at the steps that are needed to test viewModel properly. And `TestScheduler` with its virtual time is the rescue for these strange Double asserts. And finally, we don't need to wait until the test completes.
+
+### loginButtonEnabled test
+
+Ok, let's continue with `TestScheduler`. 
+
+We are not limited by the number of observers or cold/hot observables, but I recommend limiting the number of observers to one. One observer for one testable variable. The number of cot/hot observable might vary as it depends on complexity of a viewModel. In the following test I created 2 inputs: one for login, one for password. But still test one output, which is `var loginButtonEnabled: Driver<Bool>` 
+
+```swift
+func testLoginSignal() {
+    let boolObserver = testScheduler.createObserver(Bool.self)
+
+    sut.loginButtonEnabled
+      .drive(boolObserver)
+      .disposed(by: disposeBag)
+
+    let loginInputEvents: [Recorded<Event<String>>] = [
+      .next(10, "user"),
+      .next(20, "username"),
+      .next(50, "use")
+    ]
+
+    let passwordInputEvents: [Recorded<Event<String>>] = [
+      .next(30, "pas"),
+      .next(40, "password")
+    ]
+
+    testScheduler.createColdObservable(passwordInputEvents)
+      .bind(to: sut.passwordInput)
+      .disposed(by: disposeBag)
+
+    testScheduler.createColdObservable(loginInputEvents)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    testScheduler.start()
+
+    XCTAssertEqual(boolObserver.events, [
+      .next(0, false),
+      .next(10, false),
+      .next(20, false),
+      .next(30, false),
+      .next(40, true),
+      .next(50, false)
+      ])
+  }
+```
+ 
+## Related materials
+
+* Ray and his team do an awesome job. [Shai Mishali](https://github.com/freak4pc), one of the top contributor in RxSwift repository, has written a [nice article](https://www.raywenderlich.com/7408-testing-your-rxswift-code). I recommend reading through and following the  instructions to get a deeper understanding of what to test and how to test in MVVM+RxSwift using RxTest;
+* Although the article ([part-1](http://rx-marin.com/post/rxswift-rxtests-unit-tests/), [part-2](http://rx-marin.com/post/rxswift-rxtests-unit-tests-part-2/)) was written by Marin a while ago, it is still relevant;
+* I like the way how `TestScheduler` was compared to `Subject` in [this article](http://adamborek.com/rxtests-rxactionsheet/);
+* Recently I've watched CocoaHeads Russia meetup which is available [on youtube](https://www.youtube.com/watch?v=1e5_5daooqk&t=80s) (Russian). The first speaker [Dmitry Trimonov](https://github.com/trimonovds) was talking about RxSwift.

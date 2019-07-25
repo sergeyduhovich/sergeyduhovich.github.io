@@ -1,0 +1,418 @@
+---
+layout: single
+title: "RxTest"
+ref: rx-test
+date: 2019-06-14 12:00:00 +0300
+categories: rxswift
+lang: ru
+---
+
+Самым распространенным MVVM примером является пример работы экрана логина. У нас есть 2 Observable от UITextField, комбинируя которые мы можем управлять состоянием кнопки - `isEnabled`. Давайте рассмотрим [пример с репозитория RxSwift](https://github.com/ReactiveX/RxSwift/blob/53cd723d40d05177e790c8c34c36cec7092a6106/RxExample/RxExample/Examples/SimpleValidation/SimpleValidationViewController.swift) с небольшими изменениями.
+
+![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-1.png)
+
+![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-2.png)
+
+Когда пользователь вводит валидные данные, кнопка становится активной.
+
+### Точка отсчета
+
+У `LoginViewController` `viewDidLoad` метод реализован следующим образом:
+
+```swift
+usernameLabel.text = "Username has to be at least \(Constants.minimalUsernameLength) characters"
+passwordLabel.text = "Password has to be at least \(Constants.minimalPasswordLength) characters"
+
+let usernameValid = usernameField.rx.text.orEmpty
+  .map { $0.count >= Constants.minimalUsernameLength }
+  .share(replay: 1)
+
+let passwordValid = passwordField.rx.text.orEmpty
+  .map { $0.count >= Constants.minimalPasswordLength }
+  .share(replay: 1)
+
+let everythingValid = Observable.combineLatest(usernameValid, passwordValid) { $0 && $1 }
+
+usernameValid
+  .bind(to: passwordField.rx.isUserInteractionEnabled)
+  .disposed(by: disposeBag)
+
+usernameValid
+  .bind(to: usernameLabel.rx.isHidden)
+  .disposed(by: disposeBag)
+
+passwordValid
+  .bind(to: passwordLabel.rx.isHidden)
+  .disposed(by: disposeBag)
+
+everythingValid
+  .bind(to: loginButton.rx.isEnabled)
+  .disposed(by: disposeBag)
+
+loginButton.rx.tap
+  .subscribe(onNext: { [weak self] _ in
+    let controller = UIStoryboard(name: "Main", bundle: nil)
+      .instantiateViewController(withIdentifier: "HomeViewController")
+    self?.navigationController?.pushViewController(controller, animated: true)
+  })
+  .disposed(by: disposeBag)
+```
+
+Несмотря на то, что код написал на RxSwift и работает ровно так как мы ожидаем, в таком виде мы не можем его протестировать, а значит не можем гарантировать, что после будущих модификаций поведение останется таким, каким мы его планировали изначально.
+
+### LoginViewModel
+
+Перенесем логику по созданию и комбинированию сигналов в отдельный класс `LoginViewModel`. Взаимодействие с пользователем будет обрабатываться в input переменных типа `PublishRelay`. Результаты преобразований, которые будут биндиться на UI, будут иметь тип `Driver`.
+
+Одна из возможных реализаций:
+
+```swift
+struct LoginViewModel {
+  var loginInput: PublishRelay<String> = .init()
+  var passwordInput: PublishRelay<String> = .init()
+  var loginAction: PublishRelay<Void> = .init()
+
+  var login: Driver<String>
+  var password: Driver<String>
+  var passwordFieldEnabled: Driver<Bool>
+  var loginWarningHidden: Driver<Bool>
+  var passwordWarningHidden: Driver<Bool>
+  var loginButtonEnabled: Driver<Bool>
+
+  var loginSignal: Signal<(String,String)>
+
+  let disposeBag = DisposeBag()
+
+  init() {
+    login = loginInput.asDriver(onErrorJustReturn: "")
+    password = passwordInput.asDriver(onErrorJustReturn: "")
+
+    let usernameValid = loginInput
+      .map { $0.count >= Constants.minimalUsernameLength }
+      .startWith(false)
+      .share(replay: 1)
+
+    let passwordValid = passwordInput
+      .map { $0.count >= Constants.minimalPasswordLength }
+      .startWith(false)
+      .share(replay: 1)
+
+    let everythingValid = Observable.combineLatest(usernameValid, passwordValid) { $0 && $1 }
+
+    passwordFieldEnabled = usernameValid
+      .asDriver(onErrorJustReturn: false)
+
+    loginWarningHidden = usernameValid
+      .asDriver(onErrorJustReturn: false)
+
+    passwordWarningHidden = passwordValid
+      .asDriver(onErrorJustReturn: false)
+
+    loginButtonEnabled = everythingValid
+      .asDriver(onErrorJustReturn: false)
+
+    loginSignal = loginAction
+      .withLatestFrom(loginInput)
+      .withLatestFrom(passwordInput) { ($0, $1) }
+      .asSignal(onErrorJustReturn: ("", ""))
+  }
+}
+```
+
+В некоторых архитектурных подходах `input` и `output` могут быть объявлены как протокол и быть реализованны в отдельном классе, или структуре. Например [как в этой статье](https://medium.com/smoke-swift-every-day/rxswift-viewmodel-done-right-532c1a6ede2f). Для простых проектов в этом нет необходимости, протестировать мы сможем и без дополнительных протоколов, тем более, если мы не собираемся использовать мок-версии наших вьюмоделей.
+
+Обновленный `viewDidLoad` метод:
+
+```swift
+    usernameLabel.text = "Username has to be at least \(Constants.minimalUsernameLength) characters"
+    passwordLabel.text = "Password has to be at least \(Constants.minimalPasswordLength) characters"
+
+    usernameField.rx.text.orEmpty
+      .bind(to: viewModel.loginInput)
+      .disposed(by: disposeBag)
+
+    passwordField.rx.text.orEmpty
+      .bind(to: viewModel.passwordInput)
+      .disposed(by: disposeBag)
+
+    loginButton.rx.tap
+      .bind(to: viewModel.loginAction)
+      .disposed(by: disposeBag)
+
+    viewModel.login
+      .drive(usernameField.rx.text)
+      .disposed(by: disposeBag)
+
+    viewModel.password
+      .drive(passwordField.rx.text)
+      .disposed(by: disposeBag)
+
+    viewModel.passwordFieldEnabled
+      .drive(passwordField.rx.isUserInteractionEnabled)
+      .disposed(by: disposeBag)
+
+    viewModel.loginWarningHidden
+      .drive(usernameLabel.rx.isHidden)
+      .disposed(by: disposeBag)
+
+    viewModel.passwordWarningHidden
+      .drive(passwordLabel.rx.isHidden)
+      .disposed(by: disposeBag)
+
+    viewModel.loginButtonEnabled
+      .drive(loginButton.rx.isEnabled)
+      .disposed(by: disposeBag)
+
+    viewModel.loginSignal
+      .emit(onNext: { [weak self] (login, password) in
+        print(login, password)
+        let controller = UIStoryboard(name: "Main", bundle: nil)
+          .instantiateViewController(withIdentifier: "HomeViewController")
+        self?.navigationController?.pushViewController(controller, animated: true)
+      })
+      .disposed(by: disposeBag)
+```
+
+Кода стало намного больше. Но теперь мы можем протестировать логику внутри `LoginViewModel`. Во контроллере останутся только биндинги, которые вовсе не обязательно тестить.
+
+## Простой test
+
+Базовым классом RxTest является `TestScheduler`. Очень специфическая версия scheduler без привязки к реальному времени, который был создан специально для тестов. Мы будем работать со следующими его методами:
+
+```swift
+//1
+func createObserver<Element>(_ type: Element.Type) -> TestableObserver<Element>
+
+//2
+func createColdObservable<Element>(_ events: [Recorded<Event<Element>>]) -> TestableObservable<Element>
+func createHotObservable<Element>(_ events: [Recorded<Event<Element>>]) -> TestableObservable<Element>
+
+//3
+func start()
+```
+
+0. Создает observer, который может использоваться как параметр в `bind`/`drive` методах. Все ивенты будут доступны в переменной `events`;
+0. Эти методы возвращают TestableObservable с предустановленными в виртуальном времени ивентами;
+0. Этот метод запускает scheduler;
+
+Давайте посмотрим на следующий тест `LoginViewModel`:
+
+```swift
+class LoginViewModelTests: XCTestCase {
+
+  var testScheduler: TestScheduler!
+  var sut: LoginViewModel!
+  var disposeBag: DisposeBag!
+
+  override func setUp() {
+    testScheduler = TestScheduler(initialClock: 0)
+    sut = LoginViewModel()
+    disposeBag = DisposeBag()
+  }
+  
+  override func tearDown() {
+    testScheduler = nil
+    sut = nil
+    disposeBag = nil
+  }
+  
+  func test5LettersEnablesPassword() {
+    //1
+    let boolObserver = testScheduler.createObserver(Bool.self)
+
+    //2
+    sut.passwordFieldEnabled
+      .drive(boolObserver)
+      .disposed(by: disposeBag)
+
+    //4
+    let userInputEvents: [Recorded<Event<String>>] = [
+      .next(10, "use"),
+      .next(20, "username"),
+      .next(30, "user")
+    ]
+
+    //3
+    testScheduler.createColdObservable(userInputEvents)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    //5
+    testScheduler.start()
+
+    //6
+    XCTAssertEqual(boolObserver.events, [
+      .next(0, false),
+      .next(10, false),
+      .next(20, true),
+      .next(30, false)
+      ])
+  }
+}
+```
+
+0. `TestScheduler` создал сущность observer, который подписан на `var passwordFieldEnabled: Driver<Bool>` нашей вьюмодели;
+0. Каждый раз, когда у вьюмодели будет эмититься ивент, он придет в observer;
+0. Дальше мы создали тестовый `Observable` типа `String` с предопределенными заранее ивентами в виртуальном времени;
+0. `.next(10, "use")`, `.next(20, "username")` аналоги пользовательского ввода во времени, но это время никак не связано с настоящими секундами, своего рода абстракция, которая понадобится позднее в asserts;
+0. Запускаем наш scheduler;
+0. Сравниваем наши ожидания с полученными результатами;
+
+Наша вьюмодель эмитит `.next(0, false)` в момент подписки, несмотря на то, что мы этот ивент не указывали. Эта логика реализована оператором `.startWith(false)` что бы избежать неоднозначности и сразу иметь значения для обновления UI в момент подписки.
+
+### Test без `TestScheduler`
+
+Как выглядел бы мой тест, если бы у меня не было возможности использовать `TestScheduler`? Возможно код выглядел бы следующим образом:
+
+```swift
+class StraightForwardLoginViewModelTests: XCTestCase {
+
+  var sut: LoginViewModel!
+  var disposeBag: DisposeBag!
+  //1
+  var results: [(Bool, TimeInterval)]!
+  var scheduler: ConcurrentDispatchQueueScheduler!
+
+  override func setUp() {
+    sut = LoginViewModel()
+    disposeBag = DisposeBag()
+    results = []
+    scheduler = ConcurrentDispatchQueueScheduler(qos: .background)
+  }
+
+  override func tearDown() {
+    sut = nil
+    disposeBag = nil
+    results = nil
+    scheduler = nil
+  }
+
+  func test5LettersEnablesPassword() {
+
+    //2
+    let initialTimeStamp = Date.timeIntervalSinceReferenceDate
+
+    sut.passwordFieldEnabled
+      .drive(onNext: { [weak self] value in
+        //3
+        self?.results.append((value, Date.timeIntervalSinceReferenceDate - initialTimeStamp))
+      })
+      .disposed(by: disposeBag)
+
+    //4
+    let expectation = XCTestExpectation(description: "last event was sent")
+
+    //5
+    Observable<String>
+      .just("use")
+      .delay(0.1, scheduler: scheduler)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    Observable<String>
+      .just("username")
+      .delay(0.2, scheduler: scheduler)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    Observable<String>
+      .just("user")
+      .delay(0.3, scheduler: scheduler)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    Observable<Int>.empty()
+      .delay(0.4, scheduler: scheduler)
+      .subscribe(onCompleted: {
+        //6
+        expectation.fulfill()
+      })
+      .disposed(by: disposeBag)
+
+    //7
+    wait(for: [expectation], timeout: 1)
+
+    let event1 = results[0]
+    let event2 = results[1]
+    let event3 = results[2]
+    let event4 = results[3]
+
+    //8
+    XCTAssertEqual(event1.0, false)
+    XCTAssertEqual(event2.0, false)
+    XCTAssertEqual(event3.0, true)
+    XCTAssertEqual(event4.0, false)
+
+    //9
+    XCTAssertEqual(event1.1, 0.0, accuracy: 0.01)
+    XCTAssertEqual(event2.1, 0.1, accuracy: 0.01)
+    XCTAssertEqual(event3.1, 0.2, accuracy: 0.01)
+    XCTAssertEqual(event4.1, 0.3, accuracy: 0.01)
+  }
+}
+```
+
+0. Мне понадобился бы массив, где бы хранились значения, которые приходят в тестируемой переменной;
+0. Время начала теста, что бы иметь возможность посчитать разницу, когда начнут приходить ивенты;
+0. Запись приходящих ивентов в массив;
+0. Для асинхронных тестов, которые занимают какие-то время мы используем `XCTestExpectation`;
+0. Сгенерируем несколько ивентов для input нашей вьюмодели с заданными задержками;
+0. `expectation.fulfill()` нужен, что бы пройти дальше строки `wait` #7;
+0. `wait` является частью работы с `XCTestExpectation`;
+0. Блок проверок;
+0. Очень сложно работая с реальным таймером получить точные значения, указанные в delay, мы получим только значения приближенные к ним, на практике это могут быть: `0.1` - `0.10448598861694336`, `0.2` - `0.20877599716186523`, `0.3` - `0.31061995029449463`;
+
+Вариант с `TestScheduler` явно выглядит лаконичнее. Но вариант с реальным scheduler хоть и ужасен, но дает приблизительное понимание, что происходит в процессе тестирования. Ах да, он требует лишних 0.4с на выполнение теста. Что очень даже критичто для тестов.
+
+### loginButtonEnabled test
+
+Давайте вернемся к `TestScheduler`. 
+
+Мы не ограничены количеством observer-ов, которые генерирует `TestScheduler`, ровно как и не ограниченны количеством холодных/горячих observables. Но я всеже рекомендую использовать один observer на один тест, т.е. не тестировать ровно 1 переменную (например `var loginButtonEnabled: Driver<Bool>`) за 1 тест. Для следующего теста был создан 1 observer и 2 observables т.к. результат зависит сразу от 2 observables: 
+
+```swift
+func testLoginSignal() {
+    let boolObserver = testScheduler.createObserver(Bool.self)
+
+    sut.loginButtonEnabled
+      .drive(boolObserver)
+      .disposed(by: disposeBag)
+
+    let loginInputEvents: [Recorded<Event<String>>] = [
+      .next(10, "user"),
+      .next(20, "username"),
+      .next(50, "use")
+    ]
+
+    let passwordInputEvents: [Recorded<Event<String>>] = [
+      .next(30, "pas"),
+      .next(40, "password")
+    ]
+
+    testScheduler.createColdObservable(passwordInputEvents)
+      .bind(to: sut.passwordInput)
+      .disposed(by: disposeBag)
+
+    testScheduler.createColdObservable(loginInputEvents)
+      .bind(to: sut.loginInput)
+      .disposed(by: disposeBag)
+
+    testScheduler.start()
+
+    XCTAssertEqual(boolObserver.events, [
+      .next(0, false),
+      .next(10, false),
+      .next(20, false),
+      .next(30, false),
+      .next(40, true),
+      .next(50, false)
+      ])
+  }
+```
+ 
+## Related materials
+
+* Ray и его комманда делает очень качественный контент. [Shai Mishali](https://github.com/freak4pc), один из топ контрибьюторов RxSwift репозитория, написал [отличную статью](https://www.raywenderlich.com/7408-testing-your-rxswift-code). I recommend reading through and following instructions to get deeper understanding of what to test and how to test in MVVM+RxSwift using RxTest;
+* Even the article ([part-1](http://rx-marin.com/post/rxswift-rxtests-unit-tests/), [part-2](http://rx-marin.com/post/rxswift-rxtests-unit-tests-part-2/)) was written by Marin a while ago, it still relevant;
+* I like the way how `TestScheduler` was compared to `Subject` in [this article](http://adamborek.com/rxtests-rxactionsheet/);
+* Recently, I've watched CocoaHeads Russia meetup, it's available [on youtube](https://www.youtube.com/watch?v=1e5_5daooqk&t=80s) (Russian). The first speaker, [Dmitry Trimonov](https://github.com/trimonovds) was talking about RxSwift.
