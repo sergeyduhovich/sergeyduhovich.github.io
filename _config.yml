@@ -7,6 +7,7 @@ twitter_username: sergey.dukhovich
 github_username:  SergeyDukhovich
 minimal_mistakes_skin: air
 search: true
+search_full_content: true
 
 locale: ru
 
