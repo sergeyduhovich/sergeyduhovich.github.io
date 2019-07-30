@@ -1,23 +1,21 @@
 ---
 layout: single
 title: "RxTest"
-ref: rx-test
 date: 2019-06-14 12:00:00 +0300
 categories: rxswift
-lang: en
 ---
 
-The classic of MVVM example is LoginViewModel with some use-cases, like enabling or disabling Login Button depending on login and password fields. I'm going to use [example from RxSwift repo](https://github.com/ReactiveX/RxSwift/blob/53cd723d40d05177e790c8c34c36cec7092a6106/RxExample/RxExample/Examples/SimpleValidation/SimpleValidationViewController.swift) with a little modification.
+Самым распространенным MVVM примером является пример работы экрана логина. У нас есть 2 Observable от UITextField, комбинируя которые мы можем управлять состоянием кнопки - `isEnabled`. Давайте рассмотрим [пример с репозитория RxSwift](https://github.com/ReactiveX/RxSwift/blob/53cd723d40d05177e790c8c34c36cec7092a6106/RxExample/RxExample/Examples/SimpleValidation/SimpleValidationViewController.swift) с небольшими изменениями.
 
 ![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-1.png)
 
 ![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-2.png)
 
-The user types the login and password. If conditions meet, warning labels hides and the login button switches to the enabled state.
+Когда пользователь вводит валидные данные, кнопка становится активной.
 
-### Start point
+### Точка отсчета
 
-In `LoginViewController` `viewDidLoad` method is implemented in the following way:
+У `LoginViewController` `viewDidLoad` метод реализован следующим образом:
 
 ```swift
 usernameLabel.text = "Username has to be at least \(Constants.minimalUsernameLength) characters"
@@ -58,13 +56,13 @@ loginButton.rx.tap
   .disposed(by: disposeBag)
 ```
 
-Even the code is written in RxSwift and works as expected, there is no way to test it to be sure that everything works as it should even after future modifications.
+Несмотря на то, что код написал на RxSwift и работает ровно так как мы ожидаем, в таком виде мы не можем его протестировать, а значит не можем гарантировать, что после будущих модификаций поведение останется таким, каким мы его планировали изначально.
 
 ### LoginViewModel
 
-We need to move the logic of creation and transformation of all Observable sequences to a separate class, in our case it will be `LoginViewModel`. All Observable sequences depend on login & password fields, they are represented by input. We'll define all inputs as variables of `PublishRelay`. Output fields will be represented by `Driver` trait.
+Перенесем логику по созданию и комбинированию сигналов в отдельный класс `LoginViewModel`. Взаимодействие с пользователем будет обрабатываться в input переменных типа `PublishRelay`. Результаты преобразований, которые будут биндиться на UI, будут иметь тип `Driver`.
 
-ViewModel looks like:
+Одна из возможных реализаций:
 
 ```swift
 struct LoginViewModel {
@@ -119,9 +117,9 @@ struct LoginViewModel {
 }
 ```
 
-In some architecture approaches `input` and `output` might have their own distinctive types. Check out [this article](https://medium.com/smoke-swift-every-day/rxswift-viewmodel-done-right-532c1a6ede2f). For small projects it might look like overengineering if you are not going to use different viewModels for one viewController.
+В некоторых архитектурных подходах `input` и `output` могут быть объявлены как протокол и быть реализованны в отдельном классе, или структуре. Например [как в этой статье](https://medium.com/smoke-swift-every-day/rxswift-viewmodel-done-right-532c1a6ede2f). Для простых проектов в этом нет необходимости, протестировать мы сможем и без дополнительных протоколов, тем более, если мы не собираемся использовать мок-версии наших вьюмоделей.
 
-And the updated `viewDidLoad` method:
+Обновленный `viewDidLoad` метод:
 
 ```swift
     usernameLabel.text = "Username has to be at least \(Constants.minimalUsernameLength) characters"
@@ -173,11 +171,11 @@ And the updated `viewDidLoad` method:
       .disposed(by: disposeBag)
 ```
 
-Much more code. But right now we are able to test our logic inside `init` method in `LoginViewModel`. And ViewController contains only bindings which are not necessary to be tested.
+Кода стало намного больше. Но теперь мы можем протестировать логику внутри `LoginViewModel`. Во контроллере останутся только биндинги, которые вовсе не обязательно тестить.
 
-## Simple test
+## Простой test
 
-The core class of RxTest is `TestScheduler`. It's a very specific scheduler as it uses virtual time and was created to be used in tests. There are methods you'll use a lot:
+Базовым классом RxTest является `TestScheduler`. Очень специфическая версия scheduler без привязки к реальному времени, который был создан специально для тестов. Мы будем работать со следующими его методами:
 
 ```swift
 //1
@@ -191,12 +189,11 @@ func createHotObservable<Element>(_ events: [Recorded<Event<Element>>]) -> Testa
 func start()
 ```
 
-0. This method creates an observer which could be used as a parameter for `bind`/`drive` methods. All events will be stored and accessible in `events` property;
-0. These methods return a TestableObservable with predefined, recorded events; 
-0. This method starts its scheduler;
+0. Создает observer, который может использоваться как параметр в `bind`/`drive` методах. Все ивенты будут доступны в переменной `events`;
+0. Эти методы возвращают TestableObservable с предустановленными в виртуальном времени ивентами;
+0. Этот метод запускает scheduler;
 
-
-I've written a simple test-case for `LoginViewModel`:
+Давайте посмотрим на следующий тест `LoginViewModel`:
 
 ```swift
 class LoginViewModelTests: XCTestCase {
@@ -252,18 +249,18 @@ class LoginViewModelTests: XCTestCase {
 }
 ```
 
-0. `TestScheduler` was used to create an observer, which was connected to "output" `var passwordFieldEnabled: Driver<Bool>` of viewModel;
-0. Each time viewModel emmits an element it will be forwarded to this observer;
-0. Then we created a testable `Observable` of `String` with specified events over the virtual time;
-0. `.next(10, "use")`and `.next(20, "username")` represent userInput with the specific time. This time is not connected to seconds, just abstractions. This time will be used later in Assertion block;
-0. To make all this stuff work we need to start our scheduler;
-0. Then we check our expectations with the recorded events;
+0. `TestScheduler` создал сущность observer, который подписан на `var passwordFieldEnabled: Driver<Bool>` нашей вьюмодели;
+0. Каждый раз, когда у вьюмодели будет эмититься ивент, он придет в observer;
+0. Дальше мы создали тестовый `Observable` типа `String` с предопределенными заранее ивентами в виртуальном времени;
+0. `.next(10, "use")`, `.next(20, "username")` аналоги пользовательского ввода во времени, но это время никак не связано с настоящими секундами, своего рода абстракция, которая понадобится позднее в asserts;
+0. Запускаем наш scheduler;
+0. Сравниваем наши ожидания с полученными результатами;
 
-Our viewModel emits `.next(0, false)` when the observer subscribes to it. This logic is implemented by this operator `.startWith(false)` to avoid ambiguity. We want to update UI right after subscription.
+Наша вьюмодель эмитит `.next(0, false)` в момент подписки, несмотря на то, что мы этот ивент не указывали. Эта логика реализована оператором `.startWith(false)` что бы избежать неоднозначности и сразу иметь значения для обновления UI в момент подписки.
 
-### Test without `TestScheduler`
+### Test без `TestScheduler`
 
-What if we had tried writing the test above without `TestScheduler`? I would probably have written something like:
+Как выглядел бы мой тест, если бы у меня не было возможности использовать `TestScheduler`? Возможно код выглядел бы следующим образом:
 
 ```swift
 class StraightForwardLoginViewModelTests: XCTestCase {
@@ -353,23 +350,23 @@ class StraightForwardLoginViewModelTests: XCTestCase {
 }
 ```
 
-0. I need an array where all events will be stored;
-0. I need the exact time when the test started to calculate the diff when events emit;
-0. Each next event of viewModel under test will be recorded;
-0. As for a regular async test, we have to work with `XCTestExpectation` instance;
-0. We configure a few observables with the predefined delay and bind them to viewModel input;
-0. `expectation.fulfill()` is needed to stop waiting in #7;
-0. It's how a usual expectation works;
-0. Assertion blocks;
-0. It's hard to assert Double values. Although I specified very partiucular delays, they won't be the same as I defined. See the real timing: `0.1` vs `0.10448598861694336`, `0.2` vs `0.20877599716186523`, `0.3` - `0.31061995029449463`;
+0. Мне понадобился бы массив, где бы хранились значения, которые приходят в тестируемой переменной;
+0. Время начала теста, что бы иметь возможность посчитать разницу, когда начнут приходить ивенты;
+0. Запись приходящих ивентов в массив;
+0. Для асинхронных тестов, которые занимают какие-то время мы используем `XCTestExpectation`;
+0. Сгенерируем несколько ивентов для input нашей вьюмодели с заданными задержками;
+0. `expectation.fulfill()` нужен, что бы пройти дальше строки `wait` #7;
+0. `wait` является частью работы с `XCTestExpectation`;
+0. Блок проверок;
+0. Очень сложно работая с реальным таймером получить точные значения, указанные в delay, мы получим только значения приближенные к ним, на практике это могут быть: `0.1` - `0.10448598861694336`, `0.2` - `0.20877599716186523`, `0.3` - `0.31061995029449463`;
 
-In comparison with the virtual scheduler, the second test looks overloaded. But it gives you another look at the steps that are needed to test viewModel properly. And `TestScheduler` with its virtual time is the rescue for these strange Double asserts. And finally, we don't need to wait until the test completes.
+Вариант с `TestScheduler` явно выглядит лаконичнее. Но вариант с реальным scheduler хоть и ужасен, но дает приблизительное понимание, что происходит в процессе тестирования. Ах да, он требует лишних 0.4с на выполнение теста. Что очень даже критичто для тестов.
 
 ### loginButtonEnabled test
 
-Ok, let's continue with `TestScheduler`. 
+Давайте вернемся к `TestScheduler`. 
 
-We are not limited by the number of observers or cold/hot observables, but I recommend limiting the number of observers to one. One observer for one testable variable. The number of cot/hot observable might vary as it depends on complexity of a viewModel. In the following test I created 2 inputs: one for login, one for password. But still test one output, which is `var loginButtonEnabled: Driver<Bool>` 
+Мы не ограничены количеством observer-ов, которые генерирует `TestScheduler`, ровно как и не ограниченны количеством холодных/горячих observables. Но я всеже рекомендую использовать один observer на один тест, т.е. не тестировать ровно 1 переменную (например `var loginButtonEnabled: Driver<Bool>`) за 1 тест. Для следующего теста был создан 1 observer и 2 observables т.к. результат зависит сразу от 2 observables: 
 
 ```swift
 func testLoginSignal() {
@@ -413,7 +410,7 @@ func testLoginSignal() {
  
 ## Related materials
 
-* Ray and his team do an awesome job. [Shai Mishali](https://github.com/freak4pc), one of the top contributor in RxSwift repository, has written a [nice article](https://www.raywenderlich.com/7408-testing-your-rxswift-code). I recommend reading through and following the  instructions to get a deeper understanding of what to test and how to test in MVVM+RxSwift using RxTest;
-* Although the article ([part-1](http://rx-marin.com/post/rxswift-rxtests-unit-tests/), [part-2](http://rx-marin.com/post/rxswift-rxtests-unit-tests-part-2/)) was written by Marin a while ago, it is still relevant;
+* Ray и его комманда делает очень качественный контент. [Shai Mishali](https://github.com/freak4pc), один из топ контрибьюторов RxSwift репозитория, написал [отличную статью](https://www.raywenderlich.com/7408-testing-your-rxswift-code). I recommend reading through and following instructions to get deeper understanding of what to test and how to test in MVVM+RxSwift using RxTest;
+* Even the article ([part-1](http://rx-marin.com/post/rxswift-rxtests-unit-tests/), [part-2](http://rx-marin.com/post/rxswift-rxtests-unit-tests-part-2/)) was written by Marin a while ago, it still relevant;
 * I like the way how `TestScheduler` was compared to `Subject` in [this article](http://adamborek.com/rxtests-rxactionsheet/);
-* Recently I've watched CocoaHeads Russia meetup which is available [on youtube](https://www.youtube.com/watch?v=1e5_5daooqk&t=80s) (Russian). The first speaker [Dmitry Trimonov](https://github.com/trimonovds) was talking about RxSwift.
+* Recently, I've watched CocoaHeads Russia meetup, it's available [on youtube](https://www.youtube.com/watch?v=1e5_5daooqk&t=80s) (Russian). The first speaker, [Dmitry Trimonov](https://github.com/trimonovds) was talking about RxSwift.

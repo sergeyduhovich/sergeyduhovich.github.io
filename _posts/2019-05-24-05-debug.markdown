@@ -1,10 +1,8 @@
 ---
 layout: single
 title: "Debug"
-ref: debug
 date: 2019-05-24 12:00:00 +0300
 categories: rxswift
-lang: ru
 ---
 
 У `subscribe` метода довольно много аргументов, не только `onNext`, но и `onError`, `onCompleted` и `onDisposed`. 

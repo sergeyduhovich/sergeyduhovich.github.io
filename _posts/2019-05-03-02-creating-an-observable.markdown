@@ -1,17 +1,15 @@
 ---
 layout: single
-title: "Creating an Observable"
-ref: creating-an-observable
+title: "Создание Observable"
 date: 2019-05-03 12:00:00 +0300
 categories: rxswift
-lang: en
 ---
 
-In this post I'm going to run through all methods available in  the [Create](http://reactivex.io/documentation/operators.html#creating) section on reactivex website.
+В этом посте я опишу все операторы создания, которые доступны в соответствующем [разделе](http://reactivex.io/documentation/operators.html#creating) на сайте reactivex.
 
-## Create
+## Create 
 
-It creates an Observable from scratch by calling observer methods programmatically. This method is commonly used to transform a usual closure to its Observable equivalent:
+Создает Observable с нуля, мы можем  напрямую вызывать ивенты у observer. Очень часто используется, когда нужно сделать Observable из замыкания:
 
 ```swift
 struct Hotel: Codable {
@@ -74,10 +72,9 @@ hotelsObservable
 
 ## Defer
 
-It doesn't create the Observable until the observer subscribes, and create a fresh 
-Observable for each observer.
+Предотвращает выполнение кода из замыкания, до того момента, пока не появится хотя бы один подписчик. 
 
-Let's take a look at the following problem:
+Давайте посмотрим на следующую проблему:
 
 ```swift
 enum MyError: Error {
@@ -96,26 +93,25 @@ class ClassWithHeavyInit {
 }
 
 func slowObservable() -> Observable<ClassWithHeavyInit> {
-  if let result = ClassWithHeavyInit() { //executed without subscribers
-  	//executed only with subscribers
+  if let result = ClassWithHeavyInit() { //выполнится и без вызова subscribe
+  	//выполнится только после вызова subscribe
     return .just(result)
   } else {
-  	//executed only with subscribers
+  	//выполнится только после вызова subscribe
     return .error(MyError.invalidCondition(String(describing: ClassWithHeavyInit.self))) //executed only with subscribers
   }
 }
 
 slowObservable()
 ```
-
-Even if there are no subscribers, all the code except `return .just(...)` or `return .error(...)` will be executed. And we can see it in the console:
+Несмотря на то, что у нас пока нет подписчика, абсолютно весь код, кроме `return .just(...)` или `return .error(...)` будет выполнен. Лог в консоли тому подтверждение:
 
 ```
 initializer
 initializer after sleep
 ```
 
-To avoid allocating resources before they are really needed we could "wrap" our method in `deferred` closure. Let's take a look at the new `slowObservable` fixed implementation:
+Что бы избежать такого поведения, мы заворачиваем участок, отвечающий за создание Observable в `deferred` замыкание. Давайте посмотрим как будет выглядеть рабочий вариант `slowObservable`:
 
 ```swift
 func slowObservable() -> Observable<ClassWithHeavyInit> {
@@ -129,13 +125,13 @@ func slowObservable() -> Observable<ClassWithHeavyInit> {
 }
 ```
 
-And there is nothing in the console until we actually subscribe to `slowObservable()`.
+И в консоли теперь ничего нет, до тех пор, пока не появится хотя бы один подписчик. Что и является ожидаемым поведением `slowObservable()`.
 
-I found it useful when working with [Action](https://github.com/RxSwiftCommunity/Action) extension, especially where I had to deal with a lot of returns like `return .just(smth)`.
+Я довольно часто использовал такой подход, когда работал с [Action](https://github.com/RxSwiftCommunity/Action). По мере создания сущностей нужно очень часто возвращать в замыканиях что-то типа `return .just(...)`.
 
 ## Empty
 
-It creates an empty observable which immediately completes:
+Создает пустой Observable, который завершается сразу после подписки на него:
 
 ```swift
 _ = Observable<Int>
@@ -144,7 +140,7 @@ _ = Observable<Int>
   .subscribe()
 ```
 
-it prints:
+в консоли:
 
 ```swift
 empty -> subscribed
@@ -152,7 +148,7 @@ empty -> Event completed
 empty -> isDisposed
 ```
 
-Another common scenario for using `empty` is the following:
+Довольно частый сценарий использования `empty`:
 
 ```swift
 class ViewController: UIViewController {
@@ -175,11 +171,12 @@ class ViewController: UIViewController {
 }
 ```
 
-When we need to call some method on self inside a closure, and `self` is actually in a capture list and weak. While guarding it to strong we can make a compiler happy by returning `.empty()`. No value is required.
+Когда `self` фигурирует в замыкании с ключевым словом `weak`, но в самом замыкании мы не можем вернуть `nil`, а только конкретный Observable, нам нужно вызвать `guard` блок, и в нем вернуть некий Observable, который устроит и нас и компилятор.
+`.empty()` здесь идеально вписывается.
 
 ## Never
 
-It creates an infinity observable which never completes.
+Создает Observable, который никогда не завершается:
 
 ```swift
 Observable<Int>
@@ -189,19 +186,19 @@ Observable<Int>
   .disposed(by: disposeBag)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 never -> subscribed
 ```
 
-Be careful with this method. For `empty` we don't need a `disposeBag` to free the allocated memory, cause it completes immediately. `never` is the opposite, you always have to add it to some `disposeBag` to avoid memory leaks. 
+Я бы использовал этот оператор с предельной осторожностью. Это один из случаев, когда Observable не будет завершен нормальным путем с освобождением ресурсов. Нам в обязательном порядке нужен `disposeBag`.
 
-I don't see too many suitable cases for this operator. A possible scenario is when we have to conform some protocol in the Test target to create a mock Class, in this case we could use it as the simplest return.
+Я не вижу очень много мест, где можно применить этот оператор, разве что в мок-классах, что бы удовлетворить требования протокола, где нам нужно вернуть что-то осмысленное.
 
 ## Error
 
-It creates an observable which emits error and terminates.
+Возвращает Observable, который в момент подписки на него завершается с указанной ошибкой.
 
 ```swift
 enum MyError: Error {
@@ -214,7 +211,7 @@ _ = Observable<Int>
   .subscribe()
 ```
 
-it prints:
+в консоли:
 
 ```swift
 error -> subscribed
@@ -222,7 +219,7 @@ error -> Event error(customError)
 error -> isDisposed
 ```
 
-Let's take a look one more time at the example used in the Defer section:
+Мы использовали этот оператор в примере для Defer:
 
 ```swift
 func slowObservable() -> Observable<ClassWithHeavyInit> {
@@ -234,11 +231,11 @@ func slowObservable() -> Observable<ClassWithHeavyInit> {
 }
 ```
 
-## From 
+## From
 
-It converts some other object or data structure into an Observable. There are 3 possible first arguments: an `Array`,a `Sequence` and an `Optional`, the second argument, `scheduler`, is optional.
+Трансформирует объект или массив в Observable, объект может быть опциональным типом. После подписки на него генерирует `next` ивенты из переданных объектов и завершается. Есть возможность указать `scheduler` вторым аргументом.
 
-For arrays and sequences:
+Для массивов и последовательностей:
 
 ```swift
 Observable.from([1, 2, 3, 4], scheduler: MainScheduler.instance)
@@ -247,7 +244,7 @@ Observable.from([1, 2, 3, 4], scheduler: MainScheduler.instance)
   .disposed(by: disposeBag)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 from array -> subscribed
@@ -259,7 +256,7 @@ from array -> Event completed
 from array -> isDisposed
 ```
 
-The optional argument converts any object into an Observable sequence similar to `.just` operator, but there is a possibility to pass the scheduler:
+Для `optional` аргумента:
 
 ```swift
 Observable.from(optional: "QWERTY", scheduler: MainScheduler.instance)
@@ -268,7 +265,7 @@ Observable.from(optional: "QWERTY", scheduler: MainScheduler.instance)
   .disposed(by: disposeBag)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 from qwerty -> subscribed
@@ -277,7 +274,7 @@ from qwerty -> Event completed
 from qwerty -> isDisposed
 ```
 
-Things change a bit when we pass nil as the first argument. It starts working like `.empty` operator:
+Если в качестве `optional` аргумента передать `nil`, то мы не увидим `next` ивента, только `completed`, как в `empty`:
 
 ```swift
 Observable<Int>.from(optional: nil, scheduler: MainScheduler.instance)
@@ -286,7 +283,7 @@ Observable<Int>.from(optional: nil, scheduler: MainScheduler.instance)
   .disposed(by: disposeBag)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 from nil -> subscribed
@@ -294,7 +291,7 @@ from nil -> Event completed
 from nil -> isDisposed
 ```
 
-Another way to convert a sequence to an Observable is `of` operator
+Еще один способ трансформировать объект в Observable - это `of` оператор.
 
 ```swift
 Observable.of([1, 2, 3, 4])
@@ -303,7 +300,7 @@ Observable.of([1, 2, 3, 4])
   .disposed(by: disposeBag)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 of array -> subscribed
@@ -312,11 +309,11 @@ of array -> Event completed
 of array -> isDisposed
 ```
 
-In comparison with `from` printing, we see only one next event, while `from` emits the same number of the next events as array count.
+Сравнивая с `from`, в частности для массива, мы можем заметить, что в этом случае у нас будет всего 1 `next` ивент. `from` генерирует n `next` ивентов по количеству элементов в массиве.
 
 ## Interval 
 
-It creates an Observable that emits a sequence of integers spaced by a particular time interval:
+Генерирует Observable, который генерирует целочисленные значения, начиная с 0, увеличивая на 1, с заданным интервалом:
 
 ```swift
 Observable<Int>.interval(0.5, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -332,7 +329,7 @@ Observable<Int>.interval(1, scheduler: MainScheduler.instance)
 sleep(3)
 ```
 
-it starts printing until you kill the app:
+в консоли(пока мы не остановим приложение):
 
 ```swift
 background -> subscribed
@@ -358,7 +355,7 @@ UI -> Event next(3)
 
 ## Just 
 
-It converts an object or a set of objects into an Observable which emits that or those objects:
+Трансформирует объект в Observable, который после подписки на него сразу отправляет  `next` ивент и завершается:
 
 ```swift
 let just = Observable<Int>.just(1)
@@ -368,7 +365,7 @@ let justBg = Observable<Int>.just(1, scheduler: ConcurrentDispatchQueueScheduler
 
 ## Range 
 
-It creates an Observable that emits a range of sequential integers:
+Создает Observable, который генерирует ивенты исходя из диапазона range:
 
 ```swift
 Observable<Int>.range(start: 1, count: 7, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -384,7 +381,7 @@ Observable<Int>.range(start: 1, count: 7, scheduler: MainScheduler.instance)
 sleep(3)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 background -> subscribed
@@ -412,11 +409,11 @@ UI -> Event completed
 UI -> isDisposed
 ```
 
-There is a strange issue with UI first next event. We expect that Main queue is blocked by `sleep(3)`
+Странное поведение для main потока, несмотря на то что он заблокирован (`sleep(3)`), первый ивент мы получаем в любом случае.
 
 ## Repeat 
 
-It creates an Observable that emits a particular item or sequence of items repeatedly:
+Создает Observable, который генерирует указанное число без остановки и задержки:
 
 ```swift
 Observable<Int>.repeatElement(1)
@@ -430,7 +427,7 @@ Observable<String>.repeatElement("bla", scheduler: ConcurrentDispatchQueueSchedu
   .disposed(by: disposeBag)
 ```
 
-it prints untill you kill the app:
+в консоли(пока мы не остановим приложение):
 
 ```swift
 UI -> subscribed
@@ -445,11 +442,11 @@ UI -> Event next(1)
 ...
 ```
 
-As you can see, there are no prints from the second Observable, it's because we can't reach the 6th line of code, cause we did blocked Main thread. I don't see where I could use this operator, for me it looks quite useless, especially on Main thread, very similar to `while true { }`
+Как Вы можете видеть, никаких признаков присутствия второго Observable, т.к. main поток заблокирован нашим оператором, который очень похож по поведению на `while true { }`. Крайне не рекомендую его использовать без операторов `until`, `take(..)`.
 
 ## Timer
 
-It creates an Observable that emits a single item after a given delay:
+Создает Observable, который генерирует 1 ивент после определенной задержки, либо бесконечное количество ивентов, если мы укажем `period`:
 
 ```swift
 Observable<Int>.timer(5, scheduler: MainScheduler.instance)
@@ -468,7 +465,7 @@ Observable<Int>.timer(1, period: 0.5, scheduler: ConcurrentDispatchQueueSchedule
   .disposed(by: disposeBag)
 ```
 
-it prints:
+в консоли:
 
 ```swift
 once after 5s -> subscribed
@@ -497,4 +494,4 @@ UI -> Event next(6)
 background -> Event next(10)
 ```
 
-If there is no `period` parameter, it works like delay, if there is a `period` parameter it works like delayed `interval`, and a scheduler parameter is available too. 
+Как мы видим, без `period` поведение как у метода `asyncAfter(deadline:)`. С параметром `period` работает как оператор `interval`, с указанной задержкой.

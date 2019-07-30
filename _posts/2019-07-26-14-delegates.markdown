@@ -1,10 +1,8 @@
 ---
 layout: single
 title: "Делегаты"
-ref: delegates
 date: 2019-07-26 12:00:00 +0300
 categories: rxswift
-lang: ru
 ---
 
 Операторы из категории create - не единственный способ создания Observable последовательности.
@@ -80,7 +78,7 @@ open class RxTableViewDataSourceProxy
 Так же в файле можно увидеть заметки на тему того, как не нужно инициализировать `DelegateProxyType`:
 
 > Реализации `DelegateProxyType` не должны инициализироваться напрямую.
-> Для получения сущности реализованного типа `DelegateProxyType`, метод `proxy` должен быть вызван.
+> Для получения сущности реализованного типа `DelegateProxyType`,  должен быть вызван метод `proxy`.
 
 Для некоторых классов, например `UITableView`, эта инициализация уже написана, все что нам нужно для настройки делегата - вызвать `tableView.rx.setDelegate(self)` где-нибудь во `viewDidLoad`.
 
@@ -121,7 +119,7 @@ tableView.rx.itemSelected
 //call from extension
 ```
 
-Что бы избавиться от такой неоднозначности в коде,нам нужно установить делегат не стандартным способом, а используя rx-версию:
+Что бы избавиться от такой неоднозначности в коде, нам нужно установить делегат не стандартным способом, а используя rx-версию:
 
 ```swift
 tableView.rx.setDelegate(self)
@@ -132,9 +130,9 @@ tableView.rx.setDelegate(self)
 
 ### UINavigationController
 
-RxCocoa has a lot of UIKit extensions. Let's test how `UINavigationController` delegate extension works. RxCocoa provides 2 ControlEvent: `willShow` and `didShow` the same as `UINavigationControllerDelegate` does.
+В RxCocoa очень много расширений UIKit. Давайте посмотрим, как реализован `UINavigationController`. RxCocoa предоставляет 2 ControlEvent свойства: `willShow` и `didShow`, точно также, как и у обычного `UINavigationControllerDelegate`.
 
-At first, I conformed `UINavigationControllerDelegate`:
+Повторим эксперимент выше. Сначала реализуем `willShow` у `UINavigationControllerDelegate`:
 
 ```swift
 extension ViewController: UINavigationControllerDelegate {
@@ -144,7 +142,7 @@ extension ViewController: UINavigationControllerDelegate {
 }
 ```
 
-Also, I added the subscription to `willShow` ControlEvent:
+Также подпишемся на `willShow` ControlEvent:
 
 ```swift
 navigationController?.rx.willShow
@@ -154,20 +152,24 @@ navigationController?.rx.willShow
   .disposed(by: disposeBag)
 ```
 
-After that, I should setup the delegate `navigationController?.delegate = self`. And as for the UITableView example, there is the same unobvious behavior. If I setup delegate **before** subscription to `willShow` ControlEvent, everything works as expected:
+Теперь поэкспериментируем с местом, где установим сам делегат: `navigationController?.delegate = self`. 
+
+Как и в случае с таблицей, поведение неочевидное.
+
+Если я напишу `navigationController?.delegate = self` **перед** `willShow` в консоли я увижу оба лога:
 
 ```swift
 //call from extension
-//call from rx.willShow
+//call from rx.itemSelected
 ```
 
-If I setup delegate **after** subscription to `willShow` ControlEvent, only regular extension method is triggered:
- 
+Если я напишу `navigationController?.delegate = self` **после** `willShow` в консоли я увижу только лог из стандартной реализации делегата:
+
 ```swift
 //call from extension
 ```
 
-The rescue here is `RxNavigationControllerDelegateProxy` class. When you setup the following lines in the `viewDidLoad` method, ambiguity will gone.
+Решим эту проблему схожим способом. В RxCocoa уже есть `RxNavigationControllerDelegateProxy` класс. Можем добавить во `viewDidLoad` следующий код, чтобы проблема исчезла:
 
 ```swift
 RxNavigationControllerDelegateProxy
@@ -177,7 +179,7 @@ RxNavigationControllerDelegateProxy
   .disposed(by: disposeBag)
 ```
 
-But, I recommend using extension if it's really needed. And for the last example we could rewrite a bit our implementation:
+Но я все же рекомендую добавить `setDelegate(_:)` метод в расширении и воспользоваться именно этим методом:
 
 ```swift
 extension Reactive where Base: UINavigationController {
@@ -191,7 +193,7 @@ extension Reactive where Base: UINavigationController {
 }
 ```
 
-and `viewDidLoad` method will look much nicer:
+Тогда во `viewDidLoad` код будет выглядеть получше:
 
 ```swift
 navigationController?.rx
@@ -199,11 +201,11 @@ navigationController?.rx
   .disposed(by: disposeBag)
 ```
 
-### Custom delegate
+### Кастомный делегат
 
-We've covered a bit of extensions written in RxCocoa. It's time to write our own rx-delegate. As an example, I'll show you how to write rx-wrapper for `CNContactPickerDelegate`.
+Мы поговорили о проблемах настройки делегатов уже написанных в RxCocoa. Давайте напишем свой делегат, например для `CNContactPickerDelegate`.
 
-There are parts of custom delegate implementation. At first, `RxCNContactPickerDelegateProxy`:
+Начнем мы с прокси класса `RxCNContactPickerDelegateProxy`:
 
 ```swift
 /// For more information take a look at `DelegateProxyType`.
@@ -228,9 +230,9 @@ open class RxCNContactPickerDelegateProxy
 }
 ```
 
-As for me, the easiest way to write implementation above is modifying existed proxy  (`RxNavigationControllerDelegateProxy` as an example) by your needs, replacing entries `UINavigationController` by `CNContactPickerViewController` and `UINavigationControllerDelegate` by `CNContactPickerDelegate`.
+Как по мне, так самый простой способ написать такого рода делегат - открыть любой существующий, например, `RxNavigationControllerDelegateProxy` и поменять `UINavigationController` на `CNContactPickerViewController`, а `UINavigationControllerDelegate` на `CNContactPickerDelegate`. 
 
-Next part is `Reactive` extension. Here we need at least a `delegate` property. Other methods are optional. But we aim to implement everything from delegate's method list:
+Что бы воспользоваться этим делегатом, нам нужно добавить его в `Reactive` расширение. В нем нужно добавить, как минимум `delegate` свойство, ну и желательно реализовать сами делегатные методы, что бы расширение не было бесполезным:
 
 ```swift
 extension Reactive where Base: CNContactPickerViewController {
@@ -266,7 +268,7 @@ extension Reactive where Base: CNContactPickerViewController {
 }
 ```
 
-The most painful in this implementation were these selectors:
+Придется немного повозиться с селекторами:
 
 ```swift
 let sel = #selector((CNContactPickerDelegate.contactPicker(_:didSelect:)! as (CNContactPickerDelegate) -> (CNContactPickerViewController, CNContact) -> Void))
@@ -274,14 +276,14 @@ let sel = #selector((CNContactPickerDelegate.contactPicker(_:didSelect:)! as (CN
 let sel = #selector((CNContactPickerDelegate.contactPicker(_:didSelect:)! as (CNContactPickerDelegate) -> (CNContactPickerViewController, CNContactProperty) -> Void))
 ```
 
-Because, from objc point of view, they are absolutely the same, and the error appears `Ambiguous use of 'contactPicker(_:didSelect:)'`. To solve the ambiguity, we must add type castings:
+Т.к. из objc оба метода выглядят идентично, мы сразу получаем ошибку `Ambiguous use of 'contactPicker(_:didSelect:)'`. Решить ее можно приведением к правильному типу, который не так легко записать с первой попытки:
 
 ```swift
 (CNContactPickerDelegate) -> (CNContactPickerViewController, CNContact) -> Void)
 (CNContactPickerDelegate) -> (CNContactPickerViewController, CNContactProperty) -> Void)
 ``` 
 
-Also, I don't like force type casting in `map` closure, but it's the way how `methodInvoked(_:)` is implemented in `DelegateProxy`.
+Мне хоть и не нравятся приведения типов, как в кложуре `map`, но с этим ничего не поделать, так уж реализован `methodInvoked(_:)` в `DelegateProxy`:
 
 ```swift
 .map { arg in
@@ -290,7 +292,7 @@ Also, I don't like force type casting in `map` closure, but it's the way how `me
     }
 ```
 
-And the final extension for delegate:
+И, возможно, мы захотим использовать известный нам метод:
 
 ```swift
 extension Reactive where Base: CNContactPickerViewController {
@@ -304,6 +306,4 @@ extension Reactive where Base: CNContactPickerViewController {
 }
 ```
 
-We've already seen similar implementations above.
-
-Source code for this article is available on [github](https://github.com/SergeyDukhovich/DelegateRxSample).
+Пример проекта можно посмотреть в репозиторие [github](https://github.com/SergeyDukhovich/DelegateRxSample).

@@ -1,19 +1,15 @@
 ---
 layout: single
-title: "Filtering Category"
-ref: filtering-category
+title: "Фильтрация"
 date: 2019-06-28 12:00:00 +0300
 categories: rxswift
-lang: en
 ---
 
-## Filtering Category
-
-Today I'm going thoroughly through all the available operators in the filtering category from the [reactivex](http://reactivex.io/documentation/operators.html#filtering).
+В этой статье я пройдусь по операторам фильтрации, которые можно найти на сайте [reactivex](http://reactivex.io/documentation/operators.html#filtering).
 
 ### Filter
 
-This operator is very similar to the standard `filter` method which works with collections, moreover, syntax is the same. The only difference is that it's an RxSwift operator, it ignores all events which don't meet the condition.
+Оператор очень похож на стандартный `filter` оператор, который применяется к коллекциям. Он игнорирует все ивенты, значения которых не удовлетворяют условию кложуры.
 
 ```swift
 Observable
@@ -39,7 +35,7 @@ numbers -> isDisposed
 
 #### Take count
 
-We've already seen this operator in action (`.take(1).asSingle()`), when I described [what RxSwift traits](http://dukhovich.by/16-traits) are. It takes `count` number of `next` events from the source observable and emits `completed` after them.
+Мы уже видели этот оператор (`.take(1).asSingle()`), когда разбирали тему [traits](http://dukhovich.by/ru/17-traits). Он берет `count` количество ивентов и после них эмитит `completed`.
 
 ```swift
 Observable
@@ -63,7 +59,7 @@ take 5 -> isDisposed
 
 #### Take last
 
-It returns a specified number of contiguous elements from the end of an observable sequence. It works similarly as the take count operator when the sequence completes at some point.
+Возвращает указанное количество элементов с конца **завершенной** последовательности. 
 
 ```swift
 Observable
@@ -85,7 +81,7 @@ take last 5 -> Event completed
 take last 5 -> isDisposed
 ```
 
-But **be careful**, for an infinity sequence this operator will never emit any event, like in this case:
+Очень важный момент в определении выше - Observable не может быть бесконечной, иначе результат применения этого оператора бесполезен:
 
 ```swift
 Observable<Int>
@@ -102,9 +98,9 @@ take last 5 -> subscribed
 
 #### TakeWhile
 
-Returns elements from an observable sequence as long as a specified condition is `true`. Once the condition is false, the result observable completes.
+Возвращает элементы до тех пор пока условие в кложуре равно `true`, как только условие станет `false` Observable завершится `completed` ивентом.
 
-Let's discuss the following imaginary situation. We've got a sequence that emits Int events in the following repeated manner: 
+Давайте представим, что есть Observable, который эмитит следующие значения целых чисел:
 
 [0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, ...]
 
@@ -134,11 +130,11 @@ takeWhile < 4 -> Event completed
 takeWhile < 4 -> isDisposed
 ```
 
-If the source observable emits events that always meet the condition in the `takeWhile` closure (for example, `.takeWhile { $0 < 5 }` in the example above), the result observable will repeat the source behavior.
+В случае, если в кложуре всегда возвращается `true` (например, `.takeWhile { $0 < 5 }` в примере выше), результирующая Observable просто повторяет поведение исходной.
 
 #### Take duration
 
-It takes elements for the specified duration from the start of the observable source sequence, using the specified scheduler to run timers.
+На протяжении указанного времени пробрасывает значения из исходной Observable, потом завершается.
 
 ```swift
 Observable<Int>
@@ -161,7 +157,7 @@ take duration = 5 -> isDisposed
 
 #### Take until
 
-It returns the elements from the source observable sequence until the other observable sequence produces an element.
+Пробрасывает значения из исходной Observable до тех пор пока другая Observable не пришлет хотя бы один `next` ивент.
 
 ```swift
 let stopSequence = Observable<Int>
@@ -190,7 +186,7 @@ take until -> isDisposed
 
 #### Skip count
 
-It bypasses a specified number of elements in an observable sequence and then returns the remaining elements.
+Игнорирует указанное количество ивентов, дальше пробрасывает значения исходной Observable.
 
 ```swift
 Observable<Int>
@@ -218,9 +214,9 @@ source -> Event next(6)
 result after skip 4 -> Event next(6)
 ```
 
-#### Skip duration 
+#### Skip duration
 
-It skips elements for the specified duration from the start of the observable source sequence, using the specified scheduler to run timers.
+На протяжении указанного времени игнорирует ивенты, дальше пробрасывает значения исходной Observable.
 
 ```swift
 Observable<Int>
@@ -250,7 +246,7 @@ result skip duration 5 -> Event next(7)
 
 #### Skip while
 
-It bypasses elements in an observable sequence as long as a specified condition is true and then returns the remaining elements.
+Игнорирует ивенты до тех пор, пока условие в кложуре равно `true`, дальше пробрасывает значения исходной Observable игнорируя условие в кложуре.
 
 ```swift
 Observable<Int>
@@ -284,7 +280,7 @@ skipWhile < 4 -> Event next(3)
 
 #### Skip until
 
-It returns the elements from the source observable sequence that are emitted after the other observable sequence produces an element.
+Игнорирует ивенты до тех пор, пока другая Observable не пришлет хотя бы один `next` ивент, дальше пробрасывает значения исходной Observable.
 
 ```swift
 let startSequence = Observable<Int>
@@ -309,9 +305,9 @@ skipUntil startSequence -> Event next(8)
 
 #### Skip vs Take
 
-In general, `skip` is the opposite of `take`. If they were applied to the same source with the same arguments, they would "split" the source into the same element.
+В какой-то мере, оператор `skip` является антагонистом оператору `take`. Если бы они были применены к одной и той же исходной Observable с одинаковыми параметрами, они бы ее разделили на 2 части.
 
-Let's take a look one more time at the source:
+Давайте еще раз посмотрим на пример, который был выше:
 
 [0, 1, 2, 3, 4, 0, 1, 2, 3, 4, 0, 1, 2, 3, 4, ...] - source
 
@@ -321,7 +317,7 @@ Let's take a look one more time at the source:
 
 ### Distinct
 
-`distinctUntilChanged` operator returns an observable sequence that contains only distinct contiguous elements according to the equality operator.
+`distinctUntilChanged` оператор игнорирует элемент, если он не отличается от предыдущего.
 
 ```swift
 Observable
@@ -342,17 +338,15 @@ distinctUntilChanged -> Event completed
 distinctUntilChanged -> isDisposed
 ```
 
-As you can see, event isn't forwarded if the previous event is the same.
+### Debounce и Throttle
 
-### Debounce and Throttle
-
-Let's discuss the common scenario: a user types something in the search field, for each change an API call is performed. After `debounce` or `throttle`, the number of API call is reduced and it depends on delays.
+Давайте рассмотрим распространенный, но немного упрощенный сценарий: пользователь набирает текст в строке поиска, с каждой набранной буквой выполняется поисковой API запрос. После применения операторов `debounce` и `throttle` количество API запросов будет уменьшено.
 
 #### Debounce
 
-It ignores elements from an observable sequence which are followed by another element within a specified relative time duration, using the specified scheduler to run throttling timers.
+Игнорирует элементы, если временной интервал между ними меньше порогового значения. Если между какими-то 2 ивентами интервал больше указанного значения, эмитится первый ивент.
 
-The following example simulates quick users' input, but from number 5 to 10 it slows down a bit.
+Пример ниже аналогичен быстрому набору цифр, но в интервале от 5 до 10, пауза вдвое больше обычной.
 
 ```swift
 Observable<Int>
@@ -389,11 +383,9 @@ source -> Event next(11)
 source -> Event next(12)
 ```
 
-We captured exactly these "numbers" when the user types slowly (0.4) then usual (0.2).
-
 #### Throttle
 
-It returns an Observable that emits the first and the latest item emitted by the source Observable during sequential time windows of a specified duration.
+Пробрасывает ивенты исходного Observable, начиная с первого, если к моменту прихода следующего ивента прошло достаточно времени, он будет проброшен, иначе он будет проигнорирован.
 
 ```swift
 Observable<Int>
@@ -426,7 +418,7 @@ throttle applied -> Event next(10)
 
 ### ElementAt
 
-It returns a sequence emitting only element _n_ emitted by an Observable.
+Эмитит только указанный _n_-й элемент.
 
 ```swift
 Observable<Int>
@@ -455,7 +447,7 @@ source -> isDisposed
 
 ### IgnoreElements
 
-It skips elements and completes (or errors) when the observable sequence completes (or errors). The equivalent to `filter` operator that always returns false. It will never completes, if the source never completes.
+Игнорирует все элементы и завершается (или фейлится) вместе с завершением (или ошибкой) исходного Observable. Равнозначен применению оператора `filter { _ in false }`.
 
 ```swift
 Observable<Int>
@@ -484,7 +476,7 @@ ignoreElements -> isDisposed
 
 ### Sample
 
-It samples the source observable sequence using a sampler observable sequence producing sampling ticks. Upon each sampling tick, the latest element (if any) in the source sequence during the last sampling interval is sent to the resulting sequence.
+На каждый ивент сэмплер-Observable проверяется, были ли элементы у исходного Observable, если да, то они пробрасываются дальше.
 
 ```swift
 let sampler = Observable<Int>

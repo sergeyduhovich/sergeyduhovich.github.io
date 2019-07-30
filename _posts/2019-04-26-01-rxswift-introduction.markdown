@@ -1,10 +1,8 @@
 ---
 layout: single
 title: "Реактивное программирование"
-ref: rxswift-introduction
 date: 2019-04-26 12:00:00 +0300
 categories: rxswift
-lang: ru
 ---
 
 Реактивное программирование — парадигма программирования, ориентированная на потоки данных и распространение изменений. Цитата с [Wiki](https://www.wikiwand.com/ru/%D0%A0%D0%B5%D0%B0%D0%BA%D1%82%D0%B8%D0%B2%D0%BD%D0%BE%D0%B5_%D0%BF%D1%80%D0%BE%D0%B3%D1%80%D0%B0%D0%BC%D0%BC%D0%B8%D1%80%D0%BE%D0%B2%D0%B0%D0%BD%D0%B8%D0%B5), так же неплохой пост о реактивном программировании можно найти на [stackoverflow](https://stackoverflow.com/a/1030631) (en)

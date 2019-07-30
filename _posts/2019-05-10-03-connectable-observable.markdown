@@ -1,17 +1,13 @@
 ---
 layout: single
-title: "Connectable Observable"
-ref: connectable-observable
+title: "Connectable операторы"
 date: 2019-05-10 12:00:00 +0300
 categories: rxswift
-lang: en
 ---
 
-There are only 4 operators in the [connectable](http://reactivex.io/documentation/operators.html#connectable) category.
+На сайте [reactivex](http://reactivex.io/documentation/operators.html#connectable) всего 4 оператора в разделе connectable. В первом посте я упомянул, что есть 2 типа Observable: холодный(пассивный) и горячий(активный). По умолчанию все операторы из раздела [creating](http://reactivex.io/documentation/operators.html#creating) возвращают холодный сигнал. Что это значит?
 
-In the [introduction post](http://dukhovich.by/11-rxswift-introduction) I mentioned, that there are 2 Observable types: cold and hot. By default all [creating operators](http://dukhovich.by/12-creating-an-observable) return a cold Observable. What does it mean?
-
-Let's take a look at the following example. I created a timer to do some work every second:
+Давайте посмотрим на следующий пример. Я создал таймер, который срабатывает каждую секунду:
 
 ```swift
 Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background)) // creation
@@ -20,7 +16,8 @@ Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .ba
   .disposed(by: disposeBag)
 ```
 
-Observable was created in line 1, and because we have `subscribe` call, it started emitting `next` events. At this moment everything works as expected and in the console we see:
+Непосредственно сам Observable создается оператором `interval`, он ничего не делает до тех пор, пока мы на него не подпишемся. После вызова `subscribe` он начинает отправлять `next` ивенты. Пока все идет по плану, в логе мы видим:
+
 
 ```swift
 // interval 1 -> subscribed
@@ -31,7 +28,7 @@ Observable was created in line 1, and because we have `subscribe` call, it start
 // interval 1 -> Event next(4)
 ```
 
-But if we need more than one Observable to subscribe (probably after some transformation) and we don't want to create another timer for it, we update the code above to something like this:
+Теперь представим, что мы хотим переиспользовать тот же таймер и для другой подписки. Возможно код мы обновим до следующего:
 
 ```swift
 let tickObservable: Observable<Int> = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -51,7 +48,7 @@ strObservable
   .disposed(by: disposeBag)
 ```
 
-After the creation I assigned Observable to the `tickObservable` variable and used it to create another one using `map` operator. No big deal. At first glance it looks meaningful. Right now I have 2 Observables and I want to call `subscribe` on both of them. Ok, let's check out the console:
+После создания, Observable мы присвоили `tickObservable` переменной. Вторая переменная у нас получилась в результате применения оператора `map`. Дальше мы вызываем `subscribe` у обеих переменных. Смотрим в консоль:
 
 ```swift
 //1
@@ -79,9 +76,9 @@ After the creation I assigned Observable to the `tickObservable` variable and us
 // tickObservable -> Event next(2)
 ```
 
-### Let's go through the first six comments.
+### Давайте пройдемся по первым шести комментариям
 
-For each `tickObservable` and `strObservable` we can see `subscribed` debug print. And as each of them is the result of 2 chained `debug` operators we see `interval 1 -> subscribed` as well.
+Для обеих переменных `tickObservable` и `strObservable` мы видим `subscribed`. Каждая из переменных - это результат 2 цепочек `debug`, поэтому мы в том числе мы видим и `interval 1 -> subscribed` для каждой из них.
 
 ```swift
 tickObservable
@@ -89,7 +86,7 @@ tickObservable
   .subscribe()
   .disposed(by: disposeBag)
   
-//is the same as
+//эквивалентно
 Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
   .debug("interval 1")
   .debug("tickObservable")
@@ -102,7 +99,7 @@ strObservable
   .subscribe()
   .disposed(by: disposeBag)
   
-//is the same as
+//эквивалентно
 Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
   .debug("interval 1")
   .map { "currently we at \($0) tick" }
@@ -111,20 +108,20 @@ Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .ba
   .disposed(by: disposeBag)
 ```
 
-And because of the chained `debug` operator, we see 2 prints for each event. The third  and the fourth comments represent the first `next` event for the chained `tickObservable`. The fifth and the sixth comments represent the first `next` event for the chained `strObservable`.
+3 и 4 комментарий - `next` ивент `tickObservable`, 5 и 6 комментарий `next` ивент `strObservable`.
 
-### The problem
+### В чем проблема?
 
-Wait a second. In the previous paragraph I said (and the console log approved) that there are 2 prints for each `tickObservable` and `strObservable` or 4 prints in total. It is not exactly what I wanted. I wanted one print for `interval 1`, one for `tickObservable` and one for `strObservable`, 3 prints in total. 4 prints mean that we have not one, but two timers at the same time. Each `subscribe` call triggers the creation operator `interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))`, as a result in our case it created 2 timers instead of one.
+Секундочку. 2 вывода в консоль для `next` ивентов для каждой переменной `tickObservable` и `strObservable`. Это не совсем то, что я ожидал от кода, написанного ранее. Я хотел получить 1 вывод `interval 1`, 1 вывод `tickObservable` и 1 `strObservable`, т.е. суммарно 3. Вместо этого получил 4. Это означает, что у нас в системе сейчас работает не один расшаренный таймер на 2 переменных, а 2 таймера, по одному на каждую переменную. Каждый из вызовов `subscribe` вызвал создание `interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))`. 
 
-### The solution
+### Решение
 
-In the [documentation](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/GettingStarted.md#sharing-subscription-and-share-operator) we can find `Sharing subscription and share operator` section. The easiest way to fix our problem is using `share()` operator. The following example is absolutely the same but there is a small modification on `tickObservable` variable - we added `share()` operator at the end.
+В [доках](https://github.com/ReactiveX/RxSwift/blob/master/Documentation/GettingStarted.md#sharing-subscription-and-share-operator) мы можем найти секцию с применением `share()` оператора. Добавим в наш пример данный оператор, и посмотрим. что получится.
 
 ```swift
 let tickObservable: Observable<Int> = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
     .debug("interval 1")
-    .share() // added share() operator
+    .share() // добавляем share() оператор
 
 let strObservable: Observable<String> = tickObservable
   .map { "currently we at \($0) tick" }
@@ -140,7 +137,7 @@ strObservable
   .disposed(by: disposeBag)
 ```
 
-Let's check out the console:
+Let's check ou the console:
 
 ```swift
 // tickObservable -> subscribed
@@ -160,18 +157,18 @@ Let's check out the console:
 // strObservable -> Event next(currently we at 2 tick)
 ```
 
-There are exactly 3 prints for each event, one for the shared timer, one for `tickObservable` and one for `strObservable`. Looks like our problem is fixed.
+Теперь у нас по 3 вывода в консоль на каждый `next` ивент, один на расшаренный таймер и по одному на `tickObservable` и `strObservable`. Проблема решена.
 
-### Connectable Operators
+### Connectable операторы
 
-It's time to check out available [connectable operators](http://reactivex.io/documentation/operators.html#connectable). They are:
+Теперь давайте взглянем на сами операторы:
 
-* Connect — instructs a connectable Observable to begin emitting items to its subscribers
-* Publish — converts an ordinary Observable into a connectable Observable
-* RefCount — makes a Connectable Observable behave like an ordinary Observable
-* Replay — ensures that all observers see the same sequence of emitted items, even if they subscribe after the Observable has begun emitting items
+* Connect — указывает connectable Observable начинать работу вне зависимости, есть подписчики или нету
+* Publish — конвертирует обычный Observable в connectable Observable
+* RefCount — конвертирует connectable Observable в обычный Observable, который умеет считать количество подписчиков
+* Replay — присылает прошедшие ивенты для только что подписавшихся
 
-Hm, there is nothing about `share` operator. What is it? We can find the method in the `ShareReplayScope.swift` file.
+Ничего не видно про оператор `share`. Заглянем в файл `ShareReplayScope.swift`
 
 ```swift
 public func share(replay: Int = 0, scope: SubjectLifetimeScope = .whileConnected) -> Observable<E> {
@@ -191,11 +188,11 @@ public func share(replay: Int = 0, scope: SubjectLifetimeScope = .whileConnected
 }
 ```
 
-Ok, `share` is a wrapper for the combination of `multicast` + `refCount`. There are 2 optimized versions for `share(replay: 1)` and `share()`, others are the combinations of the calls `multicast`.`refCount`.
+Итак, `share` это просто обертка для операторов `multicast` + `refCount`. Так же есть 2 оптимизированные верси для `share(replay: 1)` и `share()`.
 
 ### Multicast / Publish
 
-Let's open the `Multicast.swift` file.
+Откроем файл `Multicast.swift`.
 
 ```swift
 public func publish() -> ConnectableObservable<E> {
@@ -203,7 +200,7 @@ public func publish() -> ConnectableObservable<E> {
 }
 ```
 
-Publish is a multicast using `PublishSubject`. Publish and multicast convert Observable to Connectable Observable, which is:
+Publish это multicast с использованием `PublishSubject` в качестве subject. Publish и multicast конвертируют обычный Observable в ConnectableObservable, у которого есть всего один метод:
 
 ```swift
 public protocol ConnectableObservableType : ObservableType {
@@ -211,15 +208,15 @@ public protocol ConnectableObservableType : ObservableType {
 }
 ```
 
-Connectable Observable doesn't begin emitting events immediately, it waits for instructions which can be `connect` method or `refCount`.
+Connectable Observable не будет ничего отправлять своим подписчикам до того момента как будет вызван `connect` или `refCount`.
 
-### Observable lifetime
+### Жизненный цикл Observable
 
-There are two different approaches to manage Observable lifetime in RxSwift.
+Есть 2 разных подхода управлением жизненным циклом Observable в RxSwift.
 
 ### Connect 
 
-#### Scenario 1, S2 subscribes before S1 unsubscribes:
+#### Сценарий 1, S2 подписывается до того как S1 отписывается:
 
 ![connect](http://uploads.dukhovich.by/articles/connect_1.jpg)
 
@@ -257,7 +254,7 @@ There are two different approaches to manage Observable lifetime in RxSwift.
     }
 ```
 
-it prints:
+в консоли:
 
 ```swift
 //interval 1 -> subscribed
@@ -283,7 +280,7 @@ it prints:
 //interval 1 -> Event next(9)
 ```
 
-#### Scenario 2, S2 subscribes after S1 unsubscribes:
+#### Сценарий 2, S2 подписывается после того как S1 отписывается:
 
 ![connect](http://uploads.dukhovich.by/articles/connect_2.jpg)
 
@@ -321,7 +318,7 @@ it prints:
     }
 ```
 
-it prints:
+в консоли:
 
 ```swift
 //interval 1 -> subscribed
@@ -345,18 +342,18 @@ it prints:
 //interval 1 -> Event next(9)
 ```
 
-OK. How could we describe `connect` operator?
+Итак, как мы можем описать поведение оператора `connect`?
 
-* Connect instructs a connectable Observable to begin emitting events to its subscribers;
-* Connectable Observable became a real hot Observable, which means it doesn't wait for `subscribe` call;
-* Doesn't stop producing events when the number of subscribers drops to zero;
-* Doesn't recreate an underlying Observable when the number of subscribers increases from 0 to 1;
+* Connect указывает connectable Observable начать доставлять ивенты подписчикам;
+* Connectable Observable превращается в горячий сигнал, ему не нужно ждать вызовов `subscribe`, чтобы начать работу;
+* Не прекращает работу, даже если количество подписчиков уменьшается до 0;
+* Не пересоздает Observable, к которому он был применен, в момент когда появляется первый подписчик;
 
 ### RefCount
 
-Let's take a look at `refCount`:
+Давайте посмотрим на поведение `refCount`:
 
-#### Scenario 1, S2 subscribes before S1 unsubscribes:
+#### Сценарий 1, S2 подписывается до того как S1 отписывается:
 
 ![refCount](http://uploads.dukhovich.by/articles/ref_count_2.jpg)
 
@@ -394,7 +391,7 @@ Let's take a look at `refCount`:
     }
 ```
 
-it prints:
+в консоли:
 
 ```swift
 //S1 -> subscribed
@@ -416,7 +413,7 @@ it prints:
 //interval 1 -> isDisposed
 ```
 
-#### Scenario 2, S2 subscribes after S1 unsubscribes:
+#### Сценарий 2, S2 подписывается после того как S1 отписывается:
 
 ![refCount](http://uploads.dukhovich.by/articles/ref_count_1.jpg)
 
@@ -454,7 +451,7 @@ it prints:
     }
 ```
 
-it prints:
+в консоли:
 
 ```swift
 //S1 -> subscribed
@@ -475,25 +472,25 @@ it prints:
 //interval 1 -> isDisposed
 ```
 
-OK. How could we describe `refCount` operator?
+Итак, как мы можем описать поведение оператора `refCount`?
 
-* Begins emitting events when the first subscriber calls `subscribe`
-* Stops producing events when the number of subscribers drops to zero;
-* Recreates an underlying Observable when the number of subscribers increases from 0 to 1;
+* Начинает работу только когда появляется первый подписчик, т.е. с первым вызовом `subscribe`
+* Прекращает работу, после того, как количество подписчиков уменьшается до 0;
+* Создает новый Observable, к которому он был применен, в момент когда появляется первый подписчик;
 
 ### Replay
 
-We've covered 3 of 4 operators from the connectable section.
+Мы разобрали 3 из 4 операторов в секции connectable.
 
-In the examples above we have used PublishSubject. To see how `replay` works, we should pass `ReplaySubject` instance as a parameter to `multicast` function. Replay works a bit differently with `connect` and `refCount`. Let's check the difference.
+В примерах выше мы использовали PublishSubject. Чтобы посмотреть как работает `replay`, мы должны передать `ReplaySubject` в качестве параметра для `multicast`.  Replay работает по разному для операторов  `connect` и `refCount`. Давайте посмотрим на примеры.
 
-#### Case 1
+#### Сценарий 1
 
-We call subscribe as the first subscriber after 2.5 seconds to `connect` and `refCount`, both have `ReplaySubject` with 2 last items:
+Через 2.5 секунды после вызова `connect` и `refCount` добавляем подписчика. В обоих случаях `ReplaySubject` имеет буфер на 2 элемента:
 
 ![replay](http://uploads.dukhovich.by/articles/replay_1.jpg)
 
-`RefCount` waits for the first subscriber and by the time it subscribes there is nothing to replay:
+`RefCount` ждет подписчиков, и к моменту, когда появляется первый, нет ни одного ивента для replay: 
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -524,7 +521,7 @@ We call subscribe as the first subscriber after 2.5 seconds to `connect` and `re
 //S1 -> Event next(3)
 ```
 
-`Connect` doesn't wait for subscribers. It starts emitting events. And because we gave some extra odds for the first subscriber there are 2 items replayed immediately after the subscription:
+`Connect` не ждет подписчиков, сразу начинает работу. Поскольку у него была фора в 2.5 секунды, у первого подписчика будет 2 ивента в момент подписки:
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -561,9 +558,9 @@ We call subscribe as the first subscriber after 2.5 seconds to `connect` and `re
 //S1 -> Event next(6)
 ```
 
-#### Case 2
+#### Сценарий 2
 
-We call subscribe as the second subscriber after 3.5 seconds to `connect` and `refCount`, both have `ReplaySubject` with 2 last items:
+Добавляем второго подписчика спустя 3.5 секунды после того как был вызван `connect` и `refCount` и подписан первый подписчик. В обоих случаях `ReplaySubject` имеет буфер на 2 элемента:
 
 ![replay](http://uploads.dukhovich.by/articles/replay_2.jpg)
 
@@ -609,7 +606,7 @@ let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueue
     }
 ```
 
-There is no difference in the console. By the time the second subscriber calls `subscribe` there are 2 items to replay for both: `connect` and `refCount`:
+Поведение в обоих случаях одинаковое. После подписки сначала приходят 2 прошлых ивента:
 
 ```swift
 //interval 1 -> subscribed
@@ -637,9 +634,9 @@ There is no difference in the console. By the time the second subscriber calls `
 //S2 -> Event next(6)
 ```
 
-#### Case 3
+#### Сценарий 3
 
-We call subscribe as the second subscriber after 14.5 seconds while the first subscriber was unsubscribed right after receiving `next(10)`:
+Добавляем второго подписчика спустя 14.5 секунд после того как был вызван `connect` и `refCount`. Первый Observer был отписан после 10-го ивента:
 
 ![replay](http://uploads.dukhovich.by/articles/replay_3.jpg)
 
@@ -669,7 +666,7 @@ We call subscribe as the second subscriber after 14.5 seconds while the first su
     }
 ```
 
-There is nothing worth discussing for `connect` operator. This scenario is very much the same as the first and second ones:
+С - стабильность. `Connect` оператор с `replay` во всех 3х случаях вел себя одинаково. В консоли для 3-го сценария:
 
 ```swift
 //interval 1 -> Event next(7)
@@ -725,7 +722,7 @@ There is nothing worth discussing for `connect` operator. This scenario is very 
           .disposed(by: self.disposeBagS2)
     }
 ```
-For the `refCount` there is some behaviour worth discussing. When the number of subscribers drops to zero, the underlying Observable terminates. But ReplaySubject remembers the last 2 items of the first Observable, and when we call subscribe, we create the second underlying Observable and at the same time we are  given the last 2 items of the first one:
+А теперь давайте обсудим, что происходит с оператором `refCount` в данной ситуации. Когда количество подписчиков уменьшается до нуля, Observable, к которому был применен `multicast` + `refCount` завершается, ресурсы освобождаются, но ReplaySubject продолжает держать 2 последних события. И когда вновь появляется первый подписчик, он сначала получает эти 2 события, потом "свежесозданные". Выглядит довольно интересно - 9, 10, 0, 1, 2, ... :
 
 ```swift
 //interval 1 -> Event next(7)
@@ -754,13 +751,15 @@ For the `refCount` there is some behaviour worth discussing. When the number of 
 
 ### Share
 
-We've discovered all possible cases for `connect`, `refCount` and `replay`. But there is one more case for specific `scope` argument of `share(replay: scope:)` function. If we call `share(replay: 0)`, which is the same as `share()`, the second argument doesn't have any effect. It affects behavior only when `replay > 0`.
+Мы рассмотрели почти все возможные сценарии для `connect`, `refCount` и `replay`. Теперь давайте посмотрим на аргумент `scope` в методе `share(replay: scope:)`. 
 
-Let's reproduce our last case 3, but replace `multicast`.`refCount` with:
+Если мы укажем в первом аргументе 0, т.е. `share(replay: 0)` что эквивалентно `share()`, то второй аргумент никак не повлияет на результат. Второй аргумент меняет поведение метода только при `replay > 0`.
+
+Давайте продублируем последний сценарий-3, но заменим `multicast`.`refCount` на:
 
 #### `.share(replay: 2, scope: .forever)`
 
-Which is:
+что эквивалентно:
 
 ```swift
 self.multicast(ReplaySubject.create(bufferSize: replay)).refCount()
@@ -790,7 +789,7 @@ self.multicast(ReplaySubject.create(bufferSize: replay)).refCount()
     }
 ```
 
-We've already seen the same log in the previous printing:
+Вывод в консоли такой же как в сценарии-3:
 
 ```swift
 //interval 1 -> Event next(7)
@@ -819,7 +818,7 @@ We've already seen the same log in the previous printing:
 
 #### `.share(replay: 2, scope: .whileConnected)` 
 
-Which is:
+что эквивалентно:
 
 ```swift
 self.multicast(makeSubject: { ReplaySubject.create(bufferSize: replay) }).refCount()
@@ -870,28 +869,13 @@ self.multicast(makeSubject: { ReplaySubject.create(bufferSize: replay) }).refCou
 //S2 -> Event next(2)
 ```
 
-I prefer using this combination `multicast(makeSubject: { ReplaySubject.create(bufferSize: replay) }).refCount()` rather than `multicast(ReplaySubject.create(bufferSize: replay)).refCount()`. For me it makes much more sense.
+Я предпочитаю эту связку `multicast(makeSubject: { ReplaySubject.create(bufferSize: replay) }).refCount()` если сравнивать ее с `multicast(ReplaySubject.create(bufferSize: replay)).refCount()`. Для меня это кажется более уместным в большинстве случаев.
 
-And the comments for `scope` are also useful. 
+### Заключение
 
-`.whileConnected`:
+Кому-то может показаться, что мы разбирали какие-то совсем надуманные сценарии, никак не связанные с реальным использованием RxSwift в MVVM-подобных архитектурах. В свое оправдание могу сказать, что знание теории позволяет избегать ошибок на практике. 
 
-* `retry` or `concat` operators will function as expected because terminating the sequence will clear the internal state.
-* Each connection to the source observable sequence will use its own subject.
-* When the number of subscribers drops from 1 to 0 and the connection to the source sequence is disposed, the subject will be cleared.
-
-`.forever`:
-
-* Using retry or concat operators after this operator isn’t usually advised.
-* Each connection to the source observable sequence will share the same subject.
-* After the number of subscribers drops from 1 to 0 and connection to the source observable sequence is disposed, this operator will continue holding a reference to the same subject. If at some later moment a new observer initiates a new connection to the source it can potentially receive some of the stale events received during the previous connection.
-* After the source sequence terminates, any new observer will always immediately receive replayed elements and a terminal event. No new subscriptions to the source observable sequence will be attempted.
-
-### Conclusion
-
-Looks like there are too many unreal examples which aren't connected to RxSwift usage in real MVVM-like projects. But knowing the theory might help you avoid some mistakes in the future.
-
-Let's take a look at some real examples / mistakes which could be found in real projects:
+Теперь давайте посмотрим на примеры / ошибки, которые встречаются в проектах:
 
 ```swift
     let hotels: Observable<[Hotel]> = apiClient.hotels()
@@ -907,7 +891,7 @@ Let's take a look at some real examples / mistakes which could be found in real 
     .disposed(by: disposeBag)
 ```
 
-Yep, you're right, all we need here is to avoid extra calls (we don't know whether `hotels()` Observable is hot or cold, but I guess for API implementation it should be cold) we need to fix `apiClient.hotels()` adding `share()` after it: 
+Мы не знаем природу Observable `hotels()`, но по контексту можно предположить, что он холодный (метод некого apiClient) и данный код содержит ошибку. В сеть уйдет 2 запроса вместо одного. Чтобы починить код, нужно добавить `share()`:
 
 ```swift
     let hotels: Observable<[Hotel]> = apiClient.hotels().share()
@@ -923,7 +907,7 @@ Yep, you're right, all we need here is to avoid extra calls (we don't know wheth
     .disposed(by: disposeBag)
 ```
 
-Another overhead I was fixing when working on my last project was the following problem:
+Встречался и такой случай с излишней подстраховкой операторами `share`:
 
 ```swift
   let hotelsBehavior = BehaviorRelay<[Hotel]>(value: [])
@@ -942,9 +926,9 @@ Another overhead I was fixing when working on my last project was the following 
     .map { $0.reduce(0.0, { $0 + $1.rating }) / Float($0.count) }
 ```
 
-In the first example with `apiClient.hotels()` we weren't sure that Observable was hot. But in this example we see that `hotelsObservable` is just `BehaviorRelay`. Even without `share` for all observables when we subscribe for them we won't create 3 instances of `BehaviorRelay`. It should be shared for them.
+В первом случае мы не знали `apiClient.hotels()` горячий или холодный, но здесь мы видим что `hotelsObservable` это `BehaviorRelay`. Даже не применяя оператор `share` мы не будем выделять лишних ресурсов на 3 подписчиков.
 
-When we apply `share` operator for each observable, we will create intermediate `PublishSubject` for each one. After subscription we'll have something like:
+Но если мы, как в данном примере, будем использовать оператор `share` перед каждой трансформацией в новый Observable, мы будем проделывать лишнюю работу, давай посмотрим на эквивалент:
 
 ```swift
     hotelsCount
@@ -953,7 +937,7 @@ When we apply `share` operator for each observable, we will create intermediate 
       })
       .disposed(by: disposeBag)
       
-    //is the same as
+    //тоже самое что
     let hotelsCountSubject = PublishSubject<[Hotel]>()
 
     hotelsBehavior
@@ -968,4 +952,4 @@ When we apply `share` operator for each observable, we will create intermediate 
       .disposed(by: disposeBag)
 ```
 
-Looks like a resource being wasted in the project. To fix the problem all we need is just to remove extra `share` calls.
+Похоже на overhead. Чтобы починить код, удаляем лишние вызовы `share`.
