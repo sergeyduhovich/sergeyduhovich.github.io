@@ -4,8 +4,8 @@ layout: archive
 
 {{ content }}
 
-<a href="{{ site.baseurl }}/ru">🇷🇺</a>
-<a href="{{ site.baseurl }}">🇬🇧</a>
+<a href="{{ site.baseurl }}">🇷🇺</a>
+<a href="{{ site.baseurl.chomp('/ru') }}">🇬🇧</a>
 
 <h3 class="archive__subtitle">{{ site.data.ui-text[site.locale].recent_posts | default: "Recent Posts" }}</h3>
 
