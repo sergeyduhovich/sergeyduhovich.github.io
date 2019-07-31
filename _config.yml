@@ -49,15 +49,9 @@ author:
     - label: "Linkedin"
       icon: "fab fa-fw fa-linkedin-in"
       url: "https://www.linkedin.com/in/sergey-dukhovich/"
-    - label: "Twitter"
-      icon: "fab fa-fw fa-twitter-square"
-      url: "https://twitter.com/sergeydukhovich/"
-    - label: "Instagram"
-      icon: "fab fa-fw fa-instagram"
-      url: "https://instagram.com/sergey.dukhovich/"
-    - label: "Goodreads"
-      icon: "fab fa-fw fa-goodreads"
-      url: "https://www.goodreads.com/sergeydukhovich"
+    - label: "Resume"
+      icon: "fas fa-fw fa-file-word"
+      url: "http://dukhovich.by/assets/ru_dukhovich_sergey_cv_ios.docx"
 
 defaults:
   # _posts
