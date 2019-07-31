@@ -57,7 +57,7 @@ class ViewController: UIViewController {
 }
 ```
 
-![countries](http://uploads.dukhovich.by.s3.amazonaws.com/articles/countries.png)
+![countries](http://dukhovich.by/assets/images/articles/countries.png)
 
 Запустив код, мы видим, что таблица отображается корректно, несмотря на то, что ни источник данных, ни делегат не был назначен на `ViewController`. Связь dataSource <-> вью контроллер была создана в тот момент, когда у таблицы был вызван метод `items(dataSource:)`. Реализацию можно посмотреть в файле `UITableView+Rx.swift`. Сразу же на глаза бросается класс `RxTableViewDataSourceProxy`, который предположительно отвечает за сайд эффект (неявная установка источника в таблице), который мы наблюдали выше.
 

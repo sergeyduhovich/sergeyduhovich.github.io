@@ -1,14 +1,18 @@
-title: ""
-description: >- # this means to ignore newlines until "baseurl:"
-  Write an awesome description for your new site here. You can edit this
-  line in _config.yml. It will appear in your document head meta (for
-  Google search results) and in your feed.xml site description.
+title: "Сергей Духович"
+description: >-
+  Статьи по RxSwift, автор Сергей Духович.
 twitter_username: sergey.dukhovich
 github_username:  SergeyDukhovich
 minimal_mistakes_skin: air
 search: true
+search_full_content: true
+
+analytics:
+  provider: custom
+yandex_site_verification: "69e839831ef6cfd8"
 
 locale: ru
+link_to_translated_base: http://dukhovich.by
 
 # Build settings
 markdown: kramdown
@@ -47,15 +51,9 @@ author:
     - label: "Linkedin"
       icon: "fab fa-fw fa-linkedin-in"
       url: "https://www.linkedin.com/in/sergey-dukhovich/"
-    - label: "Twitter"
-      icon: "fab fa-fw fa-twitter-square"
-      url: "https://twitter.com/sergeydukhovich/"
-    - label: "Instagram"
-      icon: "fab fa-fw fa-instagram"
-      url: "https://instagram.com/sergey.dukhovich/"
-    - label: "Goodreads"
-      icon: "fab fa-fw fa-goodreads"
-      url: "https://www.goodreads.com/sergeydukhovich"
+    - label: "Resume"
+      icon: "fas fa-fw fa-file-word"
+      url: "http://dukhovich.by/assets/ru_dukhovich_sergey_cv_ios.docx"
 
 defaults:
   # _posts

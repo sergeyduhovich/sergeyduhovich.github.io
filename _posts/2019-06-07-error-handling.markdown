@@ -53,7 +53,7 @@ let chatObservable: Observable<String> = Observable<Int>
 
 ## 1. Внутренний Observable присылает error
 
-Пожалуй, самый простой случай - это когда исходный Observable никогда не присылает ошибку, например клики на кнопку ([ControlEvent trait](http://dukhovich.by/16-traits)), а вложенный оператором `flatMap` Observable может завершиться с ошибкой. Т.е. на каждый клик, создается новый Observable. Одной из особенностей `flatMap` является тот факт, что "наверх" пробрасываются как `next` так и `error` ивенты. А вот `completed` ивент не пробрасывается. Эту особенность можно использовать в обработке ошибок.
+Пожалуй, самый простой случай - это когда исходный Observable никогда не присылает ошибку, например клики на кнопку ([ControlEvent trait]({{ site.baseurl }}{% post_url 2019-05-17-traits %})), а вложенный оператором `flatMap` Observable может завершиться с ошибкой. Т.е. на каждый клик, создается новый Observable. Одной из особенностей `flatMap` является тот факт, что "наверх" пробрасываются как `next` так и `error` ивенты. А вот `completed` ивент не пробрасывается. Эту особенность можно использовать в обработке ошибок.
 
 ### Проблема
 
@@ -131,7 +131,7 @@ inner -> isDisposed
 //result and source подписки все еще актуальны
 ```
 
-![error handling in rxswift 1](http://uploads.dukhovich.by/articles/error_handling_rxswift.gif)
+![error handling in rxswift 1](http://dukhovich.by/assets/images/articles/error_handling_rxswift.gif)
 
 ### `materialize` с последующим `dematerialize`
 
@@ -188,7 +188,7 @@ chatObservable
 
 ## RxCocoa
 
-Работая с UI мы чаще всего используем [Driver и Signal](http://dukhovich.by/ru/17-traits). Эти traits обычно создаются из Observable, который может завершиться с ошибкой, и метод для преобразования под капотом использует `catch`.
+Работая с UI мы чаще всего используем [Driver и Signal]({{ site.baseurl }}{% post_url 2019-05-17-traits %}). Эти traits обычно создаются из Observable, который может завершиться с ошибкой, и метод для преобразования под капотом использует `catch`.
 
 ### Driver:
 

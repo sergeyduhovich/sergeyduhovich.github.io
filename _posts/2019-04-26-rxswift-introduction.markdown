@@ -47,7 +47,7 @@ searchResults
 
 Полученный результат:
 
-![tableview](http://uploads.dukhovich.by/articles/GithubSearch.gif)
+![tableview](http://dukhovich.by/assets/images/articles/GithubSearch.gif)
 
 ## Плюсы RxSwift
 
@@ -198,7 +198,7 @@ public enum Event<Element> {
 
 Давайте посмотрим на marble диаграмму. По мере изучения RxSwift Вы будете часто их [встречать](https://rxmarbles.com/). Очень полезная утилита для визуального представления и понимания, что происходит.
 
-![rxmarbles_debounce](http://uploads.dukhovich.by/articles/post_1_rx_marbles.png)
+![rxmarbles_debounce](http://dukhovich.by/assets/images/articles/post_1_rx_marbles.png)
 
 Кругами на диаграмме обозначаются `next` ивенты, вертикальной линией - `completed`, перекрестие - `error`. **Нормальное завершение** любого Observable - это наличие **Completed** или **Error** ивента. После того как любой из них был получен, Observable не может ничего больше отправлять, также освобождаются все ресурсы, выделенные под Observable.
 
@@ -214,6 +214,6 @@ public enum Event<Element> {
 
 ## Горячие / Холодные сигналы
 
-Еще один важный момент в RxSwift, [понимание разницы между горячим и холодным сигналом](http://dukhovich.by/ru/15-connectable-observable). По-умолчанию, все Observable, созданные при помощи операторов [create](http://reactivex.io/documentation/operators/create.html), являются холодными. Что это значит? Когда Вы у переменной вызываете метод `subscribe`, процесс создания  Observable запускается по-новой, с выделением ресурсов. Например, если Вы создаете таймер используя метод `+interval`, вызвав 2 раза `subscribe` Вы создадите 2 таймера. В некоторых случаях нужно иметь общий Observable для проведения трансформаций и последующих подписок на них. 
+Еще один важный момент в RxSwift, [понимание разницы между горячим и холодным сигналом]({{ site.baseurl }}{% post_url 2019-05-10-connectable-observable %}). По-умолчанию, все Observable, созданные при помощи операторов [create](http://reactivex.io/documentation/operators/create.html), являются холодными. Что это значит? Когда Вы у переменной вызываете метод `subscribe`, процесс создания  Observable запускается по-новой, с выделением ресурсов. Например, если Вы создаете таймер используя метод `+interval`, вызвав 2 раза `subscribe` Вы создадите 2 таймера. В некоторых случаях нужно иметь общий Observable для проведения трансформаций и последующих подписок на них. 
 
 Горячие сигналы в отличие от холодных не выделяют дополнительные ресурсы при увеличении количества подписчиков, если ресурсы уже выделены. Горячим сигналом может быть сокет, может быть `text` свойство у `UITextField`, или это может быть "Connectable" Observable.

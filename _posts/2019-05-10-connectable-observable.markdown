@@ -218,7 +218,7 @@ Connectable Observable не будет ничего отправлять сво�
 
 #### Сценарий 1, S2 подписывается до того как S1 отписывается:
 
-![connect](http://uploads.dukhovich.by/articles/connect_1.jpg)
+![connect](http://dukhovich.by/assets/images/articles/connect_1.jpg)
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -282,7 +282,7 @@ Connectable Observable не будет ничего отправлять сво�
 
 #### Сценарий 2, S2 подписывается после того как S1 отписывается:
 
-![connect](http://uploads.dukhovich.by/articles/connect_2.jpg)
+![connect](http://dukhovich.by/assets/images/articles/connect_2.jpg)
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -355,7 +355,7 @@ Connectable Observable не будет ничего отправлять сво�
 
 #### Сценарий 1, S2 подписывается до того как S1 отписывается:
 
-![refCount](http://uploads.dukhovich.by/articles/ref_count_2.jpg)
+![refCount](http://dukhovich.by/assets/images/articles/ref_count_2.jpg)
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -415,7 +415,7 @@ Connectable Observable не будет ничего отправлять сво�
 
 #### Сценарий 2, S2 подписывается после того как S1 отписывается:
 
-![refCount](http://uploads.dukhovich.by/articles/ref_count_1.jpg)
+![refCount](http://dukhovich.by/assets/images/articles/ref_count_1.jpg)
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -488,7 +488,7 @@ Connectable Observable не будет ничего отправлять сво�
 
 Через 2.5 секунды после вызова `connect` и `refCount` добавляем подписчика. В обоих случаях `ReplaySubject` имеет буфер на 2 элемента:
 
-![replay](http://uploads.dukhovich.by/articles/replay_1.jpg)
+![replay](http://dukhovich.by/assets/images/articles/replay_1.jpg)
 
 `RefCount` ждет подписчиков, и к моменту, когда появляется первый, нет ни одного ивента для replay: 
 
@@ -562,7 +562,7 @@ Connectable Observable не будет ничего отправлять сво�
 
 Добавляем второго подписчика спустя 3.5 секунды после того как был вызван `connect` и `refCount` и подписан первый подписчик. В обоих случаях `ReplaySubject` имеет буфер на 2 элемента:
 
-![replay](http://uploads.dukhovich.by/articles/replay_2.jpg)
+![replay](http://dukhovich.by/assets/images/articles/replay_2.jpg)
 
 ```swift
 let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -638,7 +638,7 @@ let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueue
 
 Добавляем второго подписчика спустя 14.5 секунд после того как был вызван `connect` и `refCount`. Первый Observer был отписан после 10-го ивента:
 
-![replay](http://uploads.dukhovich.by/articles/replay_3.jpg)
+![replay](http://dukhovich.by/assets/images/articles/replay_3.jpg)
 
 ```swift
     let connectable = Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))

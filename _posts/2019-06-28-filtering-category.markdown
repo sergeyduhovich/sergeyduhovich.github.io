@@ -35,7 +35,7 @@ numbers -> isDisposed
 
 #### Take count
 
-Мы уже видели этот оператор (`.take(1).asSingle()`), когда разбирали тему [traits](http://dukhovich.by/ru/17-traits). Он берет `count` количество ивентов и после них эмитит `completed`.
+Мы уже видели этот оператор (`.take(1).asSingle()`), когда разбирали тему [traits]({{ site.baseurl }}{% post_url 2019-05-17-traits %}). Он берет `count` количество ивентов и после них эмитит `completed`.
 
 ```swift
 Observable

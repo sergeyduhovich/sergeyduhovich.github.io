@@ -107,7 +107,7 @@ messages
 
 И сама таблица, отображающая разные типы ячеек:
 
-![rxcocoa-table-sample](http://uploads.dukhovich.by.s3.amazonaws.com/articles/10/rxcocoa-table-sample.png)
+![rxcocoa-table-sample](http://dukhovich.by/assets/images/articles/10/rxcocoa-table-sample.png)
 
 [Ссылка на коммит с текущей реализацией.](https://github.com/SergeyDukhovich/RxDataSourcesSample/tree/326ca6e6a182d54a184edbec1a1fd9bcf288a733)
 
@@ -183,7 +183,7 @@ private var messages = Observable<[SectionModel<String, Message>]>.just([
 
 И сама таблица, отображающая разные типы ячеек, помещенные в секции:
 
-![rxdatasources-table-sample](http://uploads.dukhovich.by.s3.amazonaws.com/articles/10/rxdatasources-table-sample.png)
+![rxdatasources-table-sample](http://dukhovich.by/assets/images/articles/10/rxdatasources-table-sample.png)
 
 [Ссылка на коммит с текущей реализацией.](https://github.com/SergeyDukhovich/RxDataSourcesSample/tree/c3c55b3a7e484d2b067f182ffee492f99e22a67b)
 
@@ -247,6 +247,6 @@ class MessageObject: NSObject {
 
 `Message` все тот же enum, который использовался выше.
 
-![rxdatasources-table-sample](http://uploads.dukhovich.by.s3.amazonaws.com/articles/10/rxdatasources-animated-implementation.gif)
+![rxdatasources-table-sample](http://dukhovich.by/assets/images/articles/10/rxdatasources-animated-implementation.gif)
 
 [Ссылка на коммит с текущей реализацией.](https://github.com/SergeyDukhovich/RxDataSourcesSample/tree/115397f2bbc86986e7454a01a00e45999228b807)
