@@ -47,7 +47,7 @@ searchResults
 
 Полученный результат:
 
-![tableview](http://uploads.dukhovich.by/articles/GithubSearch.gif)
+![tableview](http://dukhovich.by/assets/images/articles/GithubSearch.gif)
 
 ## Плюсы RxSwift
 
@@ -198,7 +198,7 @@ public enum Event<Element> {
 
 Давайте посмотрим на marble диаграмму. По мере изучения RxSwift Вы будете часто их [встречать](https://rxmarbles.com/). Очень полезная утилита для визуального представления и понимания, что происходит.
 
-![rxmarbles_debounce](http://uploads.dukhovich.by/articles/post_1_rx_marbles.png)
+![rxmarbles_debounce](http://dukhovich.by/assets/images/articles/post_1_rx_marbles.png)
 
 Кругами на диаграмме обозначаются `next` ивенты, вертикальной линией - `completed`, перекрестие - `error`. **Нормальное завершение** любого Observable - это наличие **Completed** или **Error** ивента. После того как любой из них был получен, Observable не может ничего больше отправлять, также освобождаются все ресурсы, выделенные под Observable.
 

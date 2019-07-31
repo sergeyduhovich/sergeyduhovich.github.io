@@ -131,7 +131,7 @@ inner -> isDisposed
 //result and source подписки все еще актуальны
 ```
 
-![error handling in rxswift 1](http://uploads.dukhovich.by/articles/error_handling_rxswift.gif)
+![error handling in rxswift 1](http://dukhovich.by/assets/images/articles/error_handling_rxswift.gif)
 
 ### `materialize` с последующим `dematerialize`
 

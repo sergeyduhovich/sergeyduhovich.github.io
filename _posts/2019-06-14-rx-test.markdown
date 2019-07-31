@@ -7,9 +7,9 @@ categories: rxswift
 
 Самым распространенным MVVM примером является пример работы экрана логина. У нас есть 2 Observable от UITextField, комбинируя которые мы можем управлять состоянием кнопки - `isEnabled`. Давайте рассмотрим [пример с репозитория RxSwift](https://github.com/ReactiveX/RxSwift/blob/53cd723d40d05177e790c8c34c36cec7092a6106/RxExample/RxExample/Examples/SimpleValidation/SimpleValidationViewController.swift) с небольшими изменениями.
 
-![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-1.png)
+![image](http://dukhovich.by/assets/images/articles/8/login-screen-1.png)
 
-![image](http://uploads.dukhovich.by.s3.amazonaws.com/articles/8/login-screen-2.png)
+![image](http://dukhovich.by/assets/images/articles/8/login-screen-2.png)
 
 Когда пользователь вводит валидные данные, кнопка становится активной.
 
