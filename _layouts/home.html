@@ -4,8 +4,10 @@ layout: archive
 
 {{ content }}
 
+{% capture base_url_without_ru %}{{ site.baseurl | split: "" | reverse | join: "" | remove_first: "ur" | split: "" | reverse | join: ""}}{% endcapture %}
+
 <a href="{{ site.baseurl }}">🇷🇺</a>
-<a href="{{ site.baseurl.chomp('/ru') }}">🇬🇧</a>
+<a href="{{ base_url_without_ru }}">🇬🇧</a>
 
 <h3 class="archive__subtitle">{{ site.data.ui-text[site.locale].recent_posts | default: "Recent Posts" }}</h3>
 

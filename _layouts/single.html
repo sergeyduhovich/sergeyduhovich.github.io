@@ -17,8 +17,9 @@ layout: default
 <div id="main" role="main">
   {% include sidebar.html %}
 
+    {% capture base_url_without_ru %}{{ site.baseurl | split: "" | reverse | join: "" | remove_first: "ur" | split: "" | reverse | join: ""}}{% endcapture %}
     <a style="padding-left:20px; padding-top: 20px" href="{{ site.baseurl }}{{ page.url }}">🇷🇺</a>
-    <a href="{{ site.baseurl.chomp('/ru') }}{{ page.url }} ">🇬🇧</a>
+    <a href="{{ base_url_without_ru }}{{ page.url }} ">🇬🇧</a>
 
   <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
     {% if page.title %}<meta itemprop="headline" content="{{ page.title | markdownify | strip_html | strip_newlines | escape_once }}">{% endif %}
