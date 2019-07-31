@@ -238,7 +238,7 @@ subscription 5 -> isDisposed
 * Когда была совершена подписка `subscription 4`, subject до этого момента отправил 4 `next` ивента, но поскольку параметр `N` в нашем случае равен 2, то в момент подписки было отправлено всего 2 `next` ивента.
 * И, пожалуй, самая интересная особенность этого типа. Когда была совершена подписка `subscription 5`, subject уже получил `completed` ивент, но несмотря на это, подписчику перед `completed` было отправлено 2 последних `next` ивента. 
 
-Когда мы рассматривали [connectable Observable](http://dukhovich.by/ru/15-connectable-observable), для случая ниже, наблюдался тот же эффект replay. Когда последний подписчик отписывался, и спустя какое-то время появлялся новый подписчик, он получал последние значения, которые получал последний подписчик.
+Когда мы рассматривали [connectable Observable]({{ site.baseurl }}{% post_url 2019-05-10-connectable-observable %}), для случая ниже, наблюдался тот же эффект replay. Когда последний подписчик отписывался, и спустя какое-то время появлялся новый подписчик, он получал последние значения, которые получал последний подписчик.
 
 ```swift
 Observable<Int>.interval(1, scheduler: ConcurrentDispatchQueueScheduler(qos: .background))
@@ -300,7 +300,7 @@ subscription 3 -> isDisposed
 
 ### Subjects в MVVM
 
-Subject-ы часто используются в MVVM-подобных архитектурах. Давайте рассмотрим `LoginViewModel` похожую на ту, которую мы разбирали в статье про [RxTest](http://dukhovich.by/ru/25-rx-test):
+Subject-ы часто используются в MVVM-подобных архитектурах. Давайте рассмотрим `LoginViewModel` похожую на ту, которую мы разбирали в статье про [RxTest]({{ site.baseurl }}{% post_url 2019-06-14-rx-test %}):
 
 ```swift
 struct LoginViewModel {

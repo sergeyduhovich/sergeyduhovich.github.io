@@ -10,7 +10,7 @@ search: true
 search_full_content: true
 
 locale: ru
-link_to_translated_base: https://sergeydukhovich.github.io
+link_to_translated_base: http://dukhovich.by
 
 # Build settings
 markdown: kramdown
