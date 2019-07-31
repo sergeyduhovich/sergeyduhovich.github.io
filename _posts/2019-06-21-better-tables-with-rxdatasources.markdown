@@ -3,6 +3,8 @@ layout: single
 title: "Улучшаем таблицы с RxDataSources"
 date: 2019-06-21 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 В RxCocoa есть несколько стандартных методов биндинга Observable в UITableView или UICollectionView.

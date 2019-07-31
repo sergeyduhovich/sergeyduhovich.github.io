@@ -3,6 +3,8 @@ layout: single
 title: "Чем отличается observeOn от subscribeOn"
 date: 2019-07-05 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 По умолчанию, Observable и все последующие за ним операторы преобразования выполняют свою работу и уведомляют подписчиков на той очереди, на которой был вызван метод `subsribe`.

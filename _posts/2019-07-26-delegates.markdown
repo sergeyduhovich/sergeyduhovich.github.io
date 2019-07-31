@@ -3,6 +3,8 @@ layout: single
 title: "Делегаты"
 date: 2019-07-26 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 Операторы из категории create - не единственный способ создания Observable последовательности.

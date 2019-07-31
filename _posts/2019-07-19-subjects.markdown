@@ -3,6 +3,8 @@ layout: single
 title: "Subjects"
 date: 2019-07-19 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 Subject - тип, который может быть использован как Observable так и как Observer.

@@ -3,6 +3,8 @@ layout: single
 title: "Фильтрация"
 date: 2019-06-28 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 В этой статье я пройдусь по операторам фильтрации, которые можно найти на сайте [reactivex](http://reactivex.io/documentation/operators.html#filtering).

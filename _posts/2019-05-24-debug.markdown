@@ -3,6 +3,8 @@ layout: single
 title: "Debug"
 date: 2019-05-24 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 У `subscribe` метода довольно много аргументов, не только `onNext`, но и `onError`, `onCompleted` и `onDisposed`. 

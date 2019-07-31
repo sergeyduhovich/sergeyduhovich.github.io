@@ -3,6 +3,8 @@ layout: single
 title: "Создание Observable"
 date: 2019-05-03 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 В этом посте я опишу все операторы создания, которые доступны в соответствующем [разделе](http://reactivex.io/documentation/operators.html#creating) на сайте reactivex.

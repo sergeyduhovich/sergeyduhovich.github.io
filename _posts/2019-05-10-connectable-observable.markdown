@@ -3,6 +3,8 @@ layout: single
 title: "Connectable операторы"
 date: 2019-05-10 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 На сайте [reactivex](http://reactivex.io/documentation/operators.html#connectable) всего 4 оператора в разделе connectable. В первом посте я упомянул, что есть 2 типа Observable: холодный(пассивный) и горячий(активный). По умолчанию все операторы из раздела [creating](http://reactivex.io/documentation/operators.html#creating) возвращают холодный сигнал. Что это значит?

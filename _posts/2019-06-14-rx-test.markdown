@@ -3,6 +3,8 @@ layout: single
 title: "RxTest"
 date: 2019-06-14 12:00:00 +0300
 categories: rxswift
+toc: true
+toc_sticky: true
 ---
 
 Самым распространенным MVVM примером является пример работы экрана логина. У нас есть 2 Observable от UITextField, комбинируя которые мы можем управлять состоянием кнопки - `isEnabled`. Давайте рассмотрим [пример с репозитория RxSwift](https://github.com/ReactiveX/RxSwift/blob/53cd723d40d05177e790c8c34c36cec7092a6106/RxExample/RxExample/Examples/SimpleValidation/SimpleValidationViewController.swift) с небольшими изменениями.
