@@ -1,6 +1,6 @@
 ---
 title: "Пишем реактивное расширение"
-date: 2019-08-02 12:00:00 +0300
+date: 2019-08-05 12:00:00 +0300
 categories: rxswift
 toc: true
 toc_sticky: true
@@ -50,7 +50,7 @@ viewModel.loginRelay
 
 Использование и написание расширений не является чем-то обязательным при работе с RxSwift. Однако я рекомендую хотя бы ознакомиться со списком доступных методов и переменных для UIKit классов в RxCocoa. Как минимум - это поднимет Ваш уровень владения этим инструментом.
 
-Допустим, я не хочу, или не знаю, как пользоваться RxCocoa, но при этом уже пишу на RxSwift. Посмотрим, как поменется пример выше с `loginField`:
+Допустим, я не хочу, или не знаю, как пользоваться RxCocoa, но при этом уже пишу на RxSwift. Посмотрим, как поменяется пример выше с `loginField`:
 
 ```swift
 override func viewDidLoad() {
@@ -136,7 +136,7 @@ extension Reactive where Base: UIAlertAction {
 * Отправляет `completed` ивент, когда UI элемент, на котором он базируется, удаляется из памяти;
 * Ивенты доставляются на `MainScheduler.instance`.
 
-ControlEvent можно создать, используя в качестве Observable, который передается в момент инициализации, такой Observable, который обладает всеми вышеперечисленными свойствами. В противном случае можно получить расширение, которое будет работать не так, как от него ожидают пользователи.
+ControlEvent можно создать, передав в инициализатор другой Observable. Но нужно передавать такой Observable, который обладает всеми вышеперечисленными свойствами. В противном случае можно получить расширение, которое будет работать не так, как от него ожидают пользователи.
 
 Но совсем не обязательно всегда продумывать и создавать Observable, сверяясь со списком свойств. Если расширение пишется для `UIControl` из стандартного фреймворка UIKit, то можно попросту воспользоваться хелпером для создания `ControlEvent` лишь указав массив `UIControlEvents` на которые должно реагировать расширение. Например так, как это было сделано для кнопки:
 
@@ -189,57 +189,55 @@ extension Reactive where Base: UISlider {
 }
 ```
 
-В других случаях, без использования UIControl, нужно передать в инициализатор и Observable и Observer - `init(values:, valueSink:)`.
+В других случаях, без использования UIControl, нужно передать в инициализатор и Observable и Observer - `init(values:valueSink:)`.
 
-## Custom UIControl extension
+## Расширение для кастомного UIControl
 
-Subclasses of [UIControl](https://developer.apple.com/documentation/uikit/uicontrol) may vary. But if your subclass is written in the convenient way, somewhere in the implementation you'll have `sendActions(for: .valueChanged)`, or `sendActions(for: . touchUpInside)`. Good samples for custom UIControls are written on raywenderlich - [Knob Control](https://www.raywenderlich.com/5294-how-to-make-a-custom-control-tutorial-a-reusable-knob) and [Custom Slider](https://www.raywenderlich.com/2297-how-to-make-a-custom-control-tutorial-a-reusable-slider). Also, there are a lot of custom controls on GitHub.
+Разных реализаций [UIControl](https://developer.apple.com/documentation/uikit/uicontrol) достаточно много. Но как бы они не отличались внешне или стилем написания, их объединяют вызовы типа `sendActions(for: .valueChanged)`, или `sendActions(for: . touchUpInside)`, где-то после обработки жестов пользователя. Пару хороших примеров можно найти на сайте рэя - [крутелка](https://www.raywenderlich.com/5294-how-to-make-a-custom-control-tutorial-a-reusable-knob) и [кастомный слайдер](https://www.raywenderlich.com/2297-how-to-make-a-custom-control-tutorial-a-reusable-slider). Достаточно много разных контролов можно найти на GitHub.
 
-### Use ControlProperty
+### Используем ControlProperty
 
-If your custom UIControl relies on some value, and uses event `.valueChanged`, it will be easy to wrap this value with `ControlProperty`. 
+Если контрол построен вокруг некоторого значения, например громкость, и этот контрол использует ивент `.valueChanged`, то его будет относительно просто расширить свойством `ControlProperty`. 
 
-And don't worry if your (or third party) implementation doesn't use events at all, you still able to instantiate ControlProperty with source Observable, but read its requirement twice! You may start with `BehaviorRelay` as the source.
+Если по какой-то причине в реализации ивент `.valueChanged` не отправляется, что само по себе немного странно, то ControlProperty придется проинициализировать при помощи source Observable, соблюдая "контракт" ControlProperty.
 
-### Use ControlEvent
+### Используем ControlEvent
 
-If your custom UIControl doesn't store any value and `.valueChanged` event is used, it will be easy to wrap this event with `ControlEvent`. 
+Если контрол не использует ивент `.valueChanged`, и не будет использоваться в качестве Observer-а, а только как Observable, например, `itemSelected: ControlEvent<IndexPath>`, `didBeginEditing: ControlEvent<()>`, тогда пишем расширение используя `ControlEvent`.
 
-Remember, you are able to instantiate ControlEvent with source Observable, if your control doesn't send any event. You may start with `PublishRelay` as the source.
+## Для остального UI
 
-## For UI but not UIControl cases
+В случае, когда расширение пишется не для UIControl, также можно использовать перечисленные выше типы в зависимости от желаемого поведения - `ControlEvent`, `Binder` or `ControlProperty`.
 
-In this case you might ask yourself what behavior you are expected to have? Observable, Observer or both. An answer to this question will give you the right type - `ControlEvent`, `Binder` or `ControlProperty`.
+Возможно будет достаточным использование `Driver` и `Signal`. 
 
-And don't abuse `BehaviorRelay` or `PublishRelay`. If your implementation relies on delegates you should construct Observable source using `DelegateProxy` and pass it to `ControlProperty` or `ControlEvent` initializer.
+## Расширения из комьюнити
 
-## Community extension
+Расширения не обязательно писать только на UI, и не обязательно ограничиваться только перечисленными типами выше. Можно использовать все доступные [traits]({% post_url 2019-05-17-traits %}), которые подходят по ситуации.
 
-Reactive extensions exist not only for UIKit. And we are not limited only by `ControlEvent`, `Binder`, `ControlProperty`. For your extension you could use raw Observable, or any [trait]({% post_url 2019-05-17-traits %}) that perfectly describes behavior of your extension.
-
-Let's take a look what types are used in some popular extensions written by community.
+Еще одним плюсом RxSwift является его комьюнити, в котором можно найти довольно много всяких расширений нереактивных библиотек. Давайте посмотрим на типы, которые были использованы в некоторых из них.
 
 ### RxAlamofire
 
-Here we could find 3 classes wrapped with reactive:
+Здесь можно найти 3 класса, к которым был дописан функционал:
 
 * URLSession;
 * SessionManager;
 * DataRequest;
 * Request.
 
-The methods from these extensions return raw Observable. There are a few entries of `Observable.create` to wrap asynchronous calls into reactive world.
+Расширения возвращают обычные Observable. Есть пару вхождений `Observable.create`, которые трансформируют асинхронные кложуры в реактивные последовательности.
 
 ### RxGesture
 
-Because gestures are about UI, it is written using ControlEvent and ControlProperty
+Это расширение тоже про UI, написано с использованием ControlEvent и ControlProperty.
 
 ### RxKeyboard
 
-In RxKeyboard `Driver` trait is used. It's suitable for UI too.
+В RxKeyboard используется trait `Driver`. Он тоже подходит для UI.
 
-One `frame` `Driver<CGRect>` is backed by BehaviorRelay, other are just transforms of the `frame`.
+Переменная `frame` `Driver<CGRect>` базируется на `BehaviorRelay`, а другие переменные просто трансформируют ее значение.
 
 ### RxRealm
 
-There is a basic `ObserverType` is defined - `RealmObserver<Element>` and it helps writing reactive code.
+Здесь присутствует базовый `ObserverType` - `RealmObserver<Element>` который используется в написании реактивного кода.
