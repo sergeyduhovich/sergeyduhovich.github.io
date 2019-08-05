@@ -30,6 +30,8 @@ comments:
   disqus:
     shortname: "dukhovichby"
 
+future: false
+
 include:
   - _pages
 
