@@ -28,7 +28,7 @@ words_per_minute: 200
 comments:
   provider: "disqus"
   disqus:
-    shortname: "dukhovichby"
+    shortname: "dukhovich-by"
 
 future: false
 
