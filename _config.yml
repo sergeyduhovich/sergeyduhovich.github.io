@@ -16,7 +16,7 @@ link_to_translated_base: http://dukhovich.net
 
 # Build settings
 markdown: kramdown
-remote_theme: mmistakes/minimal-mistakes
+remote_theme: mmistakes/minimal-mistakes@4.16.6
 
 # Outputting
 permalink: /:categories/:title/
@@ -44,7 +44,6 @@ plugins:
 
 author:
   name   : "Sergey Dukhovich"
-  avatar : "/assets/images/bio-photo.jpg"
   bio    : "Software Developer"
   links:
     - label: "GitHub"
@@ -53,9 +52,6 @@ author:
     - label: "Linkedin"
       icon: "fab fa-fw fa-linkedin-in"
       url: "https://www.linkedin.com/in/sergey-dukhovich/"
-    - label: "Resume"
-      icon: "fas fa-fw fa-file-word"
-      url: "http://dukhovich.by/assets/ru_dukhovich_sergey_cv_ios.docx"
 
 defaults:
   # _posts
