@@ -599,7 +599,8 @@ Observable Void -> isDisposed
 
 ## Control Property / Control Event
 
-* являются одновременно Observer и Observable;
+* Control Property является одновременно Observer и Observable;
+* Control Event только Observable;
 * очень похожи на пару Driver/Signal, но привязаны к жизненному циклу UI элемента;
 * часть RxCocoa фреймворка;
 * ивенты доставляются на MainScheduler;
