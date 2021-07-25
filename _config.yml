@@ -2,7 +2,7 @@ title: "Сергей Духович"
 description: >-
   Статьи по RxSwift, автор Сергей Духович.
 twitter_username: sergey.dukhovich
-github_username:  SergeyDukhovich
+github_username:  sergeyduhovich
 minimal_mistakes_skin: air
 search: true
 search_full_content: true
@@ -12,7 +12,6 @@ analytics:
 yandex_site_verification: "69e839831ef6cfd8"
 
 locale: ru
-link_to_translated_base: http://dukhovich.net
 
 # Build settings
 markdown: kramdown

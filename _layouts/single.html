@@ -17,9 +17,6 @@ layout: default
 <div id="main" role="main">
   {% include sidebar.html %}
 
-    <a style="padding-left:20px; padding-top: 20px" href="{{ site.baseurl }}{{ page.url }}">🇷🇺</a>
-    <a href="{{ site.link_to_translated_base }}{{ page.url }} ">🇬🇧</a>
-
   <article class="page" itemscope itemtype="https://schema.org/CreativeWork">
     {% if page.title %}<meta itemprop="headline" content="{{ page.title | markdownify | strip_html | strip_newlines | escape_once }}">{% endif %}
     {% if page.excerpt %}<meta itemprop="description" content="{{ page.excerpt | markdownify | strip_html | strip_newlines | escape_once }}">{% endif %}
