@@ -16,7 +16,7 @@ link_to_translated_base: http://dukhovich.net
 
 # Build settings
 markdown: kramdown
-remote_theme: mmistakes/minimal-mistakes@4.16.6
+remote_theme: mmistakes/minimal-mistakes@4.24.0
 
 # Outputting
 permalink: /:categories/:title/
@@ -43,15 +43,15 @@ plugins:
   - jekyll-include-cache
 
 author:
-  name   : "Sergey Dukhovich"
+  name   : "Sergey Duhovich"
   bio    : "Software Developer"
   links:
     - label: "GitHub"
       icon: "fab fa-fw fa-github"
-      url: "https://github.com/sergeydukhovich"
+      url: "https://github.com/sergeyduhovich"
     - label: "Linkedin"
       icon: "fab fa-fw fa-linkedin-in"
-      url: "https://www.linkedin.com/in/sergey-dukhovich/"
+      url: "https://www.linkedin.com/in/sergey-duhovich/"
 
 defaults:
   # _posts
